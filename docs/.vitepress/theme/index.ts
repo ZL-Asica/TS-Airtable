@@ -3,6 +3,7 @@ import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
 import DocAfter from './components/DocAfter.vue'
+import NotFound from './components/NotFound.vue'
 import './style.css'
 
 export default {
@@ -14,6 +15,7 @@ export default {
       { class: 'zla-layout' },
       {
         'doc-after': () => h(DocAfter),
+        'not-found': () => h(NotFound),
       },
     )
   },
