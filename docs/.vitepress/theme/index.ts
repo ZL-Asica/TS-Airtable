@@ -2,7 +2,7 @@
 import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
-import DocFooter from './components/DocFooter.vue'
+import DocAfter from './components/DocAfter.vue'
 import './style.css'
 
 export default {
@@ -13,7 +13,7 @@ export default {
       DefaultTheme.Layout,
       { class: 'zla-layout' },
       {
-        'doc-after': () => h(DocFooter),
+        'doc-after': () => h(DocAfter),
       },
     )
   },

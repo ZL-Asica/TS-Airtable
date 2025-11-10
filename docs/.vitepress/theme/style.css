@@ -43,54 +43,50 @@
  *   in custom container, badges, etc.
  * -------------------------------------------------------------------------- */
 
-/**
- * ZL Asica theme colors
- * -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* ZL Asica theme: Airtable TS coral + emerald                                */
+/* -------------------------------------------------------------------------- */
+@import './zla-layout.css';
 
 :root {
-  /* Airtable JS: warm green + coral theme */
+  /* Brand primitives */
 
-  /* Main: Coral / Warm red */
-  --atj-coral: oklch(0.8 0.18 25);
-  --atj-coral-deep: oklch(0.7 0.2 25);
-  --atj-coral-soft: oklch(0.93 0.04 25);
+  --atts-coral: oklch(0.8 0.18 25);
+  --atts-coral-deep: oklch(0.7 0.2 25);
+  --atts-coral-soft: oklch(0.93 0.04 25 / 0.45);
+  --atts-coral-bright: color-mix(in oklab, var(--atts-coral) 75%, white 25%);
 
-  /* Secondary: Green */
+  --atts-emerald: oklch(0.72 0.18 150);
+  --atts-emerald-deep: oklch(0.6 0.18 150);
+  --atts-emerald-soft: oklch(0.9 0.05 150 / 0.4);
 
-  --atj-emerald: oklch(0.72 0.18 150);
-  --atj-emerald-deep: oklch(0.6 0.18 150);
-  --atj-emerald-soft: oklch(0.9 0.05 150);
+  --atts-ink: oklch(0.22 0.03 260);
+  --atts-ink-soft: oklch(0.3 0.02 260);
 
-  /* Dark text */
-  --atj-ink: oklch(0.22 0.03 260);
-  --atj-ink-soft: oklch(0.3 0.02 260);
+  /* Map to VitePress base brand */
 
-  /* VitePress brand colors (site-wide primary colors) */
-  --vp-c-brand: var(--atj-coral);
-  --vp-c-brand-light: var(--atj-emerald);
-  --vp-c-brand-dark: var(--atj-coral-deep);
-  --vp-c-brand-soft: var(--atj-coral-soft);
-}
+  --vp-c-brand: var(--atts-coral);
+  --vp-c-brand-light: var(--atts-emerald);
+  --vp-c-brand-dark: var(--atts-coral-deep);
+  --vp-c-brand-soft: var(--atts-coral-soft);
 
-:root {
+  /* Default semantic scales */
+
   --vp-c-default-1: var(--vp-c-gray-1);
   --vp-c-default-2: var(--vp-c-gray-2);
   --vp-c-default-3: var(--vp-c-gray-3);
   --vp-c-default-soft: var(--vp-c-gray-soft);
 
-  /* Brand: Green as primary, with a soft tinted background */
-  --vp-c-brand-1: var(--atj-coral);
-  --vp-c-brand-2: var(--atj-coral);
-  --vp-c-brand-3: var(--atj-coral-deep);
-  --vp-c-brand-soft: var(--atj-coral-soft);
+  --vp-c-brand-1: var(--atts-coral-deep);
+  --vp-c-brand-2: var(--atts-coral);
+  --vp-c-brand-3: var(--atts-coral-bright);
+  --vp-c-brand-soft: var(--atts-coral-soft);
 
-  /* Tips share the same visual language as brand */
   --vp-c-tip-1: var(--vp-c-brand-1);
   --vp-c-tip-2: var(--vp-c-brand-2);
   --vp-c-tip-3: var(--vp-c-brand-3);
   --vp-c-tip-soft: var(--vp-c-brand-soft);
 
-  /* Keep warning / danger on the stock scales */
   --vp-c-warning-1: var(--vp-c-yellow-1);
   --vp-c-warning-2: var(--vp-c-yellow-2);
   --vp-c-warning-3: var(--vp-c-yellow-3);
@@ -101,16 +97,18 @@
   --vp-c-danger-3: var(--vp-c-red-3);
   --vp-c-danger-soft: var(--vp-c-red-soft);
 
-  /* Used by VPNavBar + mobile nav */
+  /* Nav: slight brand tint */
+
   --vp-nav-bg-color: color-mix(in oklab, var(--vp-c-bg) 82%, var(--vp-c-brand-soft) 18%);
   --vp-nav-screen-bg-color: color-mix(in oklab, var(--vp-c-bg) 90%, var(--vp-c-brand-soft) 10%);
-}
 
-/**
- * Component: Button
- * -------------------------------------------------------------------------- */
+  .dark {
+    --vp-nav-bg-color: color-mix(in oklab, var(--vp-c-bg) 90%, var(--vp-c-brand-soft) 10%);
+    --vp-nav-screen-bg-color: color-mix(in oklab, var(--vp-c-bg) 94%, var(--vp-c-brand-soft) 6%);
+  }
 
-:root {
+  /* Button: brand as solid primary */
+
   --vp-button-brand-border: transparent;
   --vp-button-brand-text: var(--vp-c-white);
   --vp-button-brand-bg: var(--vp-c-brand-3);
@@ -120,23 +118,25 @@
   --vp-button-brand-active-border: transparent;
   --vp-button-brand-active-text: var(--vp-c-white);
   --vp-button-brand-active-bg: var(--vp-c-brand-1);
-}
 
-/**
- * Component: Home
- * -------------------------------------------------------------------------- */
+  /* Home hero */
 
-:root {
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, var(--atj-coral) 0%, var(--atj-emerald) 100%);
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, var(--atts-coral) 0%, var(--atts-emerald) 100%);
 
-  /* Soft glow behind the home hero image, from emerald to coral */
   --vp-home-hero-image-background-image: linear-gradient(
     -45deg,
-    var(--atj-coral-deep) 0%,
-    var(--atj-emerald-deep) 100%
+    var(--atts-coral-deep) 0%,
+    var(--atts-emerald-deep) 100%
   );
   --vp-home-hero-image-filter: blur(44px);
+
+  /* Custom block: tip uses brand soft */
+
+  --vp-custom-block-tip-border: transparent;
+  --vp-custom-block-tip-text: var(--vp-c-text-1);
+  --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
+  --vp-custom-block-tip-code-bg: var(--vp-c-brand-soft);
 }
 
 @media (min-width: 640px) {
@@ -151,186 +151,30 @@
   }
 }
 
-/**
- * Component: Custom Block
- * -------------------------------------------------------------------------- */
-
-:root {
-  --vp-custom-block-tip-border: transparent;
-  --vp-custom-block-tip-text: var(--vp-c-text-1);
-  --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
-  --vp-custom-block-tip-code-bg: var(--vp-c-brand-soft);
-}
-
-/**
- * Component: Algolia
- * -------------------------------------------------------------------------- */
+/* Algolia search brand color */
 
 .DocSearch {
   --docsearch-primary-color: var(--vp-c-brand-1) !important;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Sidebar                                                                    */
+/* Home Hero                                                                  */
 /* -------------------------------------------------------------------------- */
 
-.zla-layout .VPSidebar {
-  border-right: 1px solid color-mix(in oklab, var(--vp-c-border) 75%, transparent);
-  background: color-mix(in oklab, var(--vp-c-bg) 96%, var(--vp-c-bg-soft) 4%);
+.VPHome .VPButton.brand {
+  background: color-mix(in oklab, var(--vp-c-brand-1) 85%, var(--vp-c-bg) 15%);
 }
 
-/* Group headings */
-
-.zla-layout .VPSidebar .group .title {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  font-weight: 550;
-  color: var(--vp-c-text-3);
-  padding-inline: 0.85rem;
-  margin-top: 0.4rem;
+.VPHome .VPButton.brand:hover {
+  background: color-mix(in oklab, var(--vp-c-brand-2) 90%, var(--vp-c-bg) 10%);
+  border-color: var(--vp-c-brand-2);
 }
 
-/* Link rows */
-
-.zla-layout .VPSidebarItem .link {
-  border-radius: 999px;
-  padding-inline: 0.75rem;
-  margin-inline: 0.25rem;
+.dark .VPHome .VPButton.brand {
+  background: color-mix(in oklab, var(--vp-c-brand-1) 78%, var(--vp-c-bg) 22%);
 }
 
-.zla-layout .VPSidebarItem .link > a {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.32rem 0.2rem;
-  border-radius: inherit;
-  font-size: 0.86rem;
-  transition:
-    background 0.16s ease-out,
-    color 0.16s ease-out,
-    transform 0.12s ease-out;
-}
-
-/* Hover */
-
-.zla-layout .VPSidebarItem .link > a:hover {
-  background: color-mix(in oklab, var(--vp-c-brand-soft) 55%, transparent);
-  transform: translateX(1px);
-}
-
-/* Active item: animated rail */
-
-.zla-layout .VPSidebarItem.is-active .link > a,
-.zla-layout .VPSidebarItem .link > a.router-link-active {
-  background: color-mix(in oklab, var(--vp-c-brand-soft) 85%, transparent);
-  color: var(--vp-c-brand-1);
-  font-weight: 500;
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--vp-c-brand-2) 40%, transparent);
-  position: relative;
-}
-
-.zla-layout .VPSidebarItem.is-active .link > a::before,
-.zla-layout .VPSidebarItem .link > a.router-link-active::before {
-  content: '';
-  position: absolute;
-  left: -0.22rem;
-  top: 18%;
-  bottom: 18%;
-  width: 2px;
-  border-radius: 999px;
-  background: linear-gradient(
-    to bottom,
-    var(--vp-c-brand-2),
-    color-mix(in oklab, var(--vp-c-brand-1) 70%, var(--vp-c-brand-3) 30%)
-  );
-  transform-origin: top;
-  transform: scaleY(0);
-  transition: transform 0.18s ease-out;
-}
-
-.zla-layout .VPSidebarItem.is-active .link > a.router-link-active::before,
-.zla-layout .VPSidebarItem .link > a.router-link-active::before {
-  transform: scaleY(1);
-}
-
-/* Nested items: subtle guide line */
-
-.zla-layout .VPSidebar .items .items {
-  margin-left: 0.7rem;
-  border-left: 1px dashed color-mix(in oklab, var(--vp-c-border) 60%, transparent);
-  padding-left: 0.5rem;
-}
-
-/* Sidebar focus */
-
-.zla-layout .VPSidebarItem .link > a:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--vp-c-brand-2) 80%, transparent);
-  outline-offset: 2px;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Doc Outline / TOC                                                          */
-/* -------------------------------------------------------------------------- */
-
-.zla-layout .VPDocAsideOutline {
-  font-size: 0.78rem;
-}
-
-.zla-layout .VPDocAsideOutline .outline-title {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 550;
-  color: var(--vp-c-text-3);
-  margin-bottom: 0.4rem;
-}
-
-.zla-layout .VPDocAsideOutline .outline-content {
-  border-left: 1px solid color-mix(in oklab, var(--vp-c-border) 70%, transparent);
-  padding-left: 0.75rem;
-  margin-left: 0.1rem;
-}
-
-/* TOC links */
-
-.zla-layout .VPDocAsideOutline a.outline-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.16rem 0;
-  text-decoration: none;
-  color: var(--vp-c-text-2);
-  transition:
-    color 0.16s ease-out,
-    transform 0.12s ease-out;
-}
-
-.zla-layout .VPDocAsideOutline a.outline-link:hover {
-  color: var(--vp-c-text-1);
-  transform: translateX(1px);
-}
-
-/* Active heading */
-
-.zla-layout .VPDocAsideOutline a.outline-link.active {
-  color: var(--vp-c-brand-1);
-  font-weight: 500;
-}
-
-/* Optional dot marker if present in theme DOM */
-
-.zla-layout .VPDocAsideOutline .outline-marker {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--vp-c-border) 70%, transparent);
-  transition:
-    background 0.16s ease-out,
-    box-shadow 0.16s ease-out;
-}
-
-.zla-layout .VPDocAsideOutline .outline-marker.active {
-  background: var(--vp-c-brand-2);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--vp-c-brand-soft) 75%, transparent);
+.dark .VPHome .VPButton.brand:hover {
+  background: color-mix(in oklab, var(--vp-c-brand-2) 85%, var(--vp-c-bg) 15%);
+  border-color: var(--vp-c-brand-1);
 }
