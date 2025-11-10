@@ -5,9 +5,9 @@ import pkg from '../../package.json' with { type: 'json' }
 
 const apiSidebar: DefaultTheme.Sidebar = generateSidebar([
   {
-    documentRootPath: 'docs', // .vitepress 所在目录
-    scanStartPath: 'api', // 扫描 docs/api 下的文件
-    resolvePath: '/api/', // 生成的链接前缀 => /api/...
+    documentRootPath: 'docs', // .vitepress directory
+    scanStartPath: 'api', // Scan files under docs/api
+    resolvePath: '/api/', // Generated link prefix => /api/...
     useTitleFromFileHeading: true,
     useFolderLinkFromIndexFile: true,
     rootGroupText: 'API Reference',
@@ -42,14 +42,18 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
         items: [
           {
             text: 'Changelog',
-            link: 'https://github.com/ZL-Asica/ts-airtable/blob/main/CHANGELOG.md',
+            link: 'https://github.com/ZL-Asica/TS-Airtable/blob/main/CHANGELOG.md',
+          },
+          {
+            text: 'Contributing',
+            link: 'https://github.com/ZL-Asica/TS-Airtable/blob/main/CONTRIBUTING.md',
           },
         ],
       },
     ],
     socialLinks: [
       { icon: 'npm', link: 'https://www.npmjs.com/package/ts-airtable' },
-      { icon: 'github', link: 'https://github.com/ZL-Asica/ts-airtable' },
+      { icon: 'github', link: 'https://github.com/ZL-Asica/TS-Airtable' },
     ],
     search: {
       provider: 'local',
