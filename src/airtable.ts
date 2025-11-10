@@ -1,6 +1,7 @@
 import type {
   AirtableBase,
   AirtableClientOptions,
+  AirtableFieldSet,
   AirtableGlobalConfig,
   AirtableQuery,
   AirtableTable,
@@ -38,7 +39,7 @@ import { globalConfig } from './global-config'
  * const firstPage = await query.firstPage()
  * ```
  */
-function createQuery<TFields>(
+function createQuery<TFields extends AirtableFieldSet>(
   client: AirtableClient<TFields>,
   tableIdOrName: string,
   params?: Omit<ListRecordsParams, 'offset'>,
@@ -88,7 +89,7 @@ function createQuery<TFields>(
  * await tasks.destroy(found.id)
  * ```
  */
-function createTable<TFields>(
+function createTable<TFields extends AirtableFieldSet>(
   client: AirtableClient<TFields>,
   tableIdOrName: string,
 ): AirtableTable<TFields> {
@@ -131,9 +132,11 @@ function createTable<TFields>(
  *
  * @param opts - Airtable client options, including `apiKey` and `baseId`.
  *
- * @returns A `AirtableBase` function for the given base.
+ * @returns An {@link AirtableBase} function for the given base.
  */
-function createBase<TDefaultFields>(
+function createBase<
+  TDefaultFields extends AirtableFieldSet,
+>(
   opts: AirtableClientOptions,
 ): AirtableBase<TDefaultFields> {
   const client = new AirtableClient<TDefaultFields>(opts)
@@ -175,7 +178,10 @@ function createBase<TDefaultFields>(
  *   apiKey: process.env.AIRTABLE_API_KEY!,
  * })
  *
- * type Task = { Name: string; Status?: 'Todo' | 'Doing' | 'Done' }
+ * interface Task {
+ *   Name: string
+ *   Status?: 'Todo' | 'Doing' | 'Done'
+ * }
  *
  * const base = Airtable.base<Task>(process.env.AIRTABLE_BASE_ID!)
  *
@@ -199,13 +205,15 @@ class AirtableGlobal {
    *
    * @param config - Global configuration minus `baseId`.
    *   - `apiKey` (required before calling `base`)
+   *   - `apiVersion` (optional) – override Airtable API version (e.g. "v0")
    *   - `endpointUrl` (optional)
    *   - `fetch` (optional)
+   *   - `noRetryIfRateLimited` (optional)
    *   - `maxRetries` (optional)
    *   - `retryInitialDelayMs` (optional)
    *   - `retryOnStatuses` (optional)
-   *    - `recordsCache` (optional) - shared records cache configuration,
-   *     see {@link AirtableRecordsCacheOptions}
+   *   - `recordsCache` (optional) – shared records cache configuration,
+   *     see `AirtableRecordsCacheOptions`
    *
    * @example
    * ```ts
@@ -220,11 +228,20 @@ class AirtableGlobal {
     if (config.apiKey) {
       globalConfig.apiKey = config.apiKey
     }
+    if (config.apiVersion) {
+      globalConfig.apiVersion = config.apiVersion
+    }
+    if (config.customHeaders) {
+      globalConfig.customHeaders = config.customHeaders
+    }
     if (config.endpointUrl) {
       globalConfig.endpointUrl = config.endpointUrl
     }
     if (config.fetch) {
       globalConfig.fetch = config.fetch
+    }
+    if (config.noRetryIfRateLimited != null) {
+      globalConfig.noRetryIfRateLimited = config.noRetryIfRateLimited
     }
     if (config.maxRetries != null) {
       globalConfig.maxRetries = config.maxRetries
@@ -259,6 +276,7 @@ class AirtableGlobal {
    *   that base).
    *
    * @typeParam TDefaultFields - Default fields shape for tables in this base.
+   *   Defaults to {@link AirtableFieldSet}.
    *
    * @param baseId - Airtable base ID (e.g. `"appXXXXXXXXXXXXXX"`).
    * @param overrides - Optional per-base overrides for {@link AirtableClientOptions}.
@@ -304,7 +322,9 @@ class AirtableGlobal {
    * const tasks = await base('Tasks').select({ view: 'Grid view' }).all()
    * ```
    */
-  base<TDefaultFields = Record<string, unknown>>(
+  base<
+    TDefaultFields extends AirtableFieldSet = AirtableFieldSet,
+  >(
     baseId: string,
     overrides?: Pick<AirtableClientOptions, 'recordsCache'>,
   ): AirtableBase<TDefaultFields> {
@@ -320,8 +340,11 @@ class AirtableGlobal {
     const options: AirtableClientOptions = {
       apiKey: globalConfig.apiKey,
       baseId,
+      apiVersion: globalConfig.apiVersion,
+      customHeaders: globalConfig.customHeaders,
       endpointUrl: globalConfig.endpointUrl,
       fetch: globalConfig.fetch,
+      noRetryIfRateLimited: globalConfig.noRetryIfRateLimited,
       maxRetries: globalConfig.maxRetries,
       retryInitialDelayMs: globalConfig.retryInitialDelayMs,
       retryOnStatuses: globalConfig.retryOnStatuses,

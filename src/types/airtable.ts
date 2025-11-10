@@ -1,6 +1,7 @@
 import type { AirtableClient } from '@/client'
 import type {
   AirtableClientOptions,
+  AirtableFieldSet,
   AirtableRecord,
   CreateRecordInput,
   CreateRecordsOptions,
@@ -32,13 +33,14 @@ import type {
  *
  * @example
  * ```ts
- * import Airtable from 'airtable-ts'
+ * import Airtable from 'ts-airtable'
  *
  * Airtable.configure({
- *   apiKey: process.env.AIRTABLE_TOKEN!,
+ *   apiKey: process.env.AIRTABLE_API_KEY!,
  *   endpointUrl: 'https://api.airtable.com', // optional override
  *   fetch: customFetch,                      // optional
  *   recordsCache: {
+ *     // optional global records cache
  *     defaultTtlMs: 30_000,
  *   },
  * })
@@ -65,7 +67,7 @@ export type AirtableGlobalConfig = Omit<AirtableClientOptions, 'baseId'>
  * @typeParam TFields - Shape of the `fields` object on each record. This is
  * usually an object type mapping field names to their values.
  */
-export interface AirtableQuery<TFields> {
+export interface AirtableQuery<TFields = AirtableFieldSet> {
   /**
    * Fetch **all** records for this query across all pages.
    *
@@ -126,7 +128,7 @@ export interface AirtableQuery<TFields> {
  *
  * @typeParam TFields - Shape of the `fields` object on each record in this table.
  */
-export interface AirtableTable<TFields> {
+export interface AirtableTable<TFields = AirtableFieldSet> {
   /**
    * Start a query against this table.
    *
@@ -319,14 +321,14 @@ export interface AirtableTable<TFields> {
  *
  * @typeParam TDefaultFields - Default `fields` shape for tables accessed
  * through this base when you don't provide a more specific generic at call
- * sites. You can still override per-table generics manually if needed.
+ * sites. Defaults to {@link AirtableFieldSet}.
  *
  * @example
  * ```ts
- * import Airtable from 'airtable-ts'
+ * import Airtable from 'ts-airtable'
  *
  * Airtable.configure({
- *   apiKey: process.env.AIRTABLE_TOKEN!,
+ *   apiKey: process.env.AIRTABLE_API_KEY!,
  * })
  *
  * const base = Airtable.base<{ Name: string }>('appXXXXXXXXXXXXXX')
@@ -338,10 +340,11 @@ export interface AirtableTable<TFields> {
  * console.log(tasks[0].fields.Name)
  *
  * // You can also access the underlying client:
- * await base.client.listRecords({ tableIdOrName: 'Tasks' })
+ * const client = base.client
+ * const page = await client.records.listRecords('Tasks', { pageSize: 50 })
  * ```
  */
-export interface AirtableBase<TDefaultFields> {
+export interface AirtableBase<TDefaultFields extends AirtableFieldSet = AirtableFieldSet> {
   /**
    * Returns a table wrapper for the specified table ID or name.
    *

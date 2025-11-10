@@ -1,4 +1,4 @@
-import type { AirtableRecordsCacheOptions } from '@/types'
+import type { AirtableRecordsCacheOptions, CustomHeaders } from '@/types'
 
 /**
  * Internal storage for global configuration used by the Airtable singleton.
@@ -8,8 +8,11 @@ import type { AirtableRecordsCacheOptions } from '@/types'
  */
 interface InternalGlobalConfig {
   apiKey?: string
+  apiVersion?: string
+  customHeaders?: CustomHeaders
   endpointUrl?: string
   fetch?: typeof fetch
+  noRetryIfRateLimited?: boolean
   maxRetries?: number
   retryInitialDelayMs?: number
   retryOnStatuses?: number[]

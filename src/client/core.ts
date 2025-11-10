@@ -1,5 +1,10 @@
-import type { AirtableErrorResponseBody } from '@/errors'
-import type { AirtableClientOptions } from '@/types'
+import type {
+  AirtableClientOptions,
+  AirtableErrorResponseBody,
+  CustomHeaders,
+  GetRecordParams,
+  ListRecordsParams,
+} from '@/types'
 import { AirtableError } from '@/errors'
 
 /**
@@ -27,9 +32,12 @@ export const MAX_RECORDS_PER_BATCH = 10
  */
 export class AirtableCoreClient {
   readonly apiKey: string
+  readonly apiVersion: string
   readonly baseId: string
   readonly endpointUrl: string
   readonly fetchImpl: typeof fetch
+  readonly customHeaders?: CustomHeaders
+  readonly noRetryIfRateLimited: boolean
   readonly maxRetries: number
   readonly retryInitialDelayMs: number
   readonly retryOnStatuses: number[]
@@ -46,6 +54,7 @@ export class AirtableCoreClient {
     }
 
     this.apiKey = options.apiKey
+    this.apiVersion = options.apiVersion ?? 'v0'
     this.baseId = options.baseId
     this.endpointUrl = options.endpointUrl ?? DEFAULT_ENDPOINT_URL
 
@@ -60,6 +69,8 @@ export class AirtableCoreClient {
     }
 
     this.fetchImpl = options.fetch ?? (globalFetch as typeof fetch)
+    this.customHeaders = options.customHeaders
+    this.noRetryIfRateLimited = options.noRetryIfRateLimited ?? true
     this.maxRetries = options.maxRetries ?? 5
     this.retryInitialDelayMs = options.retryInitialDelayMs ?? 500
     this.retryOnStatuses = options.retryOnStatuses ?? [429, 500, 502, 503, 504]
@@ -84,7 +95,7 @@ export class AirtableCoreClient {
     const encodedTable = encodeURIComponent(tableIdOrName)
     const encodedRecord = recordId ? `/${encodeURIComponent(recordId)}` : ''
     const url = new URL(
-      `/v0/${this.baseId}/${encodedTable}${encodedRecord}`,
+      `/${this.apiVersion}/${this.baseId}/${encodedTable}${encodedRecord}`,
       this.endpointUrl,
     )
 
@@ -98,11 +109,11 @@ export class AirtableCoreClient {
   /**
    * Build the URL for a metadata endpoint.
    *
-   * @param path - Path under `/v0/meta`.
+   * @param path - Path under `/{apiVersion}/meta`.
    * @param query - Optional query string parameters.
    */
   buildMetaUrl(path: string, query?: URLSearchParams): URL {
-    const url = new URL(`/v0/meta${path}`, this.endpointUrl)
+    const url = new URL(`/${this.apiVersion}/meta${path}`, this.endpointUrl)
 
     if (query && Array.from(query.keys()).length > 0) {
       url.search = query.toString()
@@ -112,15 +123,15 @@ export class AirtableCoreClient {
   }
 
   /**
-   * Build a base-level URL (e.g. /v0/bases/{baseId}/webhooks/...).
+   * Build a base-level URL (e.g. /{apiVersion}/bases/{baseId}/webhooks/...).
    *
-   * @param path - Path under `/v0/bases/{baseId}`.
+   * @param path - Path under `/{apiVersion}/bases/{baseId}`.
    * @param query - Optional query string parameters.
    */
   buildBaseUrl(path: string, query?: URLSearchParams): URL {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`
     const url = new URL(
-      `/v0/bases/${this.baseId}${normalizedPath}`,
+      `/${this.apiVersion}/bases/${this.baseId}${normalizedPath}`,
       this.endpointUrl,
     )
 
@@ -139,7 +150,7 @@ export class AirtableCoreClient {
    * Build query parameters for the "List records" endpoint.
    */
   buildListQuery(
-    params?: import('@/types').ListRecordsParams,
+    params?: ListRecordsParams,
   ): URLSearchParams | undefined {
     if (!params)
       return undefined
@@ -188,7 +199,7 @@ export class AirtableCoreClient {
    * Build query parameters for "Retrieve a record" endpoint.
    */
   buildGetQuery(
-    params?: import('@/types').GetRecordParams,
+    params?: GetRecordParams,
   ): URLSearchParams | undefined {
     if (!params)
       return undefined
@@ -233,14 +244,31 @@ export class AirtableCoreClient {
    * - Error wrapping into `AirtableError`
    */
   async requestJson<T>(url: URL, init: RequestInit): Promise<T> {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
-      ...(init.headers ?? {}),
+      ...(this.apiVersion
+        ? { 'X-Airtable-API-Version': this.apiVersion }
+        : {}),
+    }
+
+    // 1) global custom headers
+    if (this.customHeaders) {
+      for (const [key, value] of Object.entries(this.customHeaders)) {
+        headers[key] = String(value)
+      }
+    }
+
+    // 2) per-request headers (may override global headers)
+    if (init.headers) {
+    // Handle as Record<string,string>
+      const h = init.headers as Record<string, string>
+      for (const [key, value] of Object.entries(h)) {
+        headers[key] = value
+      }
     }
 
     if (init.method && init.method !== 'GET' && init.method !== 'HEAD') {
-      ;(headers as Record<string, string>)['Content-Type']
-        ??= 'application/json'
+      headers['Content-Type'] ??= 'application/json'
     }
 
     let attempt = 0
@@ -281,9 +309,7 @@ export class AirtableCoreClient {
       return data as T
     }
 
-    const payload
-      = (isJson && data ? (data as AirtableErrorResponseBody) : undefined)
-        ?? undefined
+    const payload = (isJson && data ? (data as AirtableErrorResponseBody) : undefined)
 
     throw new AirtableError(response.status, payload)
   }
@@ -294,8 +320,12 @@ export class AirtableCoreClient {
    * @internal
    */
   private shouldRetry(status: number, attempt: number): boolean {
-    if (attempt >= this.maxRetries)
+    if (attempt >= this.maxRetries) {
       return false
+    }
+    if (this.noRetryIfRateLimited && status === 429) {
+      return false
+    }
     return this.retryOnStatuses.includes(status)
   }
 

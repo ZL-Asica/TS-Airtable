@@ -1,5 +1,6 @@
 import type { AirtableCoreClient } from './core'
 import type {
+  AirtableFieldSet,
   AirtableRecord,
   CreateRecordInput,
   CreateRecordsOptions,
@@ -12,7 +13,11 @@ import type {
   UpdateRecordsOptions,
   UpdateRecordsResult,
 } from '@/types'
-import type { AirtableCacheStore, AirtableRecordsCacheOnErrorContext, AirtableRecordsCacheOptions } from '@/types/cache-store'
+import type {
+  AirtableCacheStore,
+  AirtableRecordsCacheOnErrorContext,
+  AirtableRecordsCacheOptions,
+} from '@/types/cache-store'
 import { listKey, recordKey, recordPrefix, tablePrefix } from '@/utils'
 import { MAX_RECORDS_PER_BATCH } from './core'
 
@@ -21,7 +26,9 @@ import { MAX_RECORDS_PER_BATCH } from './core'
  *
  * This class is composed into `AirtableClient` as `client.records`.
  */
-export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
+export class AirtableRecordsClient<
+  TDefaultFields extends AirtableFieldSet = AirtableFieldSet,
+> {
   /**
    * Per-instance cache options controlling:
    *
@@ -52,13 +59,16 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * List records from a table (single page).
    *
    * This is a thin wrapper around Airtable's **"List records"** endpoint.
-   * If you want to automatically pull all pages, use `client.records.listAllRecords(...)` or `client.records.iterateRecords(...)`.
+   * If you want to automatically pull all pages, use
+   * `client.records.listAllRecords(...)` or
+   * `client.records.iterateRecords(...)`.
    *
    * @typeParam TFields - Shape of record fields for this call.
    *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
-   * @param params - Query parameters such as `view`, `maxRecords`, `filterByFormula`, etc.
+   * @param params - Query parameters such as `view`, `maxRecords`,
+   *   `filterByFormula`, etc.
    *
    * @returns A single page of records and an optional `offset` cursor.
    *
@@ -66,7 +76,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * const page = await client.listRecords('Tasks', {
+   * const page = await client.records.listRecords('Tasks', {
    *   view: 'Grid view',
    *   pageSize: 50,
    * })
@@ -100,7 +110,9 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
       this.core.buildListQuery(params),
     )
 
-    const result = await this.core.requestJson<ListRecordsResult<TFields>>(url, { method: 'GET' })
+    const result = await this.core.requestJson<ListRecordsResult<TFields>>(url, {
+      method: 'GET',
+    })
 
     if (key) {
       await this.cacheSet(key, result)
@@ -112,13 +124,14 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
   /**
    * List all records across pages.
    *
-   * Internally uses `client.records.listRecords(...)` and follows the returned `offset`
-   * cursor until exhaustion, or until `maxRecords` is reached.
+   * Internally uses `client.records.listRecords(...)` and follows the returned
+   * `offset` cursor until exhaustion, or until `maxRecords` is reached.
    *
    * @typeParam TFields - Shape of record fields for this call.
+   *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
-   * @param params - Same as `client.records.ListRecordsParams` but without `offset`.
+   * @param params - Same as {@link ListRecordsParams} but without `offset`.
    *   You can still specify `maxRecords` to limit the total number
    *   of records returned.
    *
@@ -128,7 +141,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * const all = await client.listAllRecords('Tasks', {
+   * const all = await client.records.listAllRecords('Tasks', {
    *   view: 'Grid view',
    *   maxRecords: 500,
    * })
@@ -168,14 +181,15 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
   /**
    * Iterate over records as an async generator.
    *
-   * This is a streaming-style alternative to `client.records.listAllRecords(...)` that
-   * can be used to process large tables without loading everything into
-   * memory at once.
+   * This is a streaming-style alternative to
+   * `client.records.listAllRecords(...)` that can be used to process large
+   * tables without loading everything into memory at once.
    *
    * @typeParam TFields - Shape of record fields for this call.
+   *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
-   * @param params - Same as `client.records.ListRecordsParams` but without `offset`.
+   * @param params - Same as {@link ListRecordsParams} but without `offset`.
    *   You can still specify `maxRecords` to stop early.
    *
    * @returns Async generator yielding `AirtableRecord` objects.
@@ -184,7 +198,9 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * for await (const record of client.iterateRecords('Tasks', { pageSize: 100 })) {
+   * for await (const record of client.records.iterateRecords('Tasks', {
+   *   pageSize: 100,
+   * })) {
    *   console.log(record.id, record.fields.Name)
    * }
    * ```
@@ -221,6 +237,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * Retrieve a single record by ID.
    *
    * @typeParam TFields - Shape of record fields for this call.
+   *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
    * @param recordId - Airtable record ID (e.g. `"recXXXXXXXXXXXXXX"`).
@@ -232,7 +249,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * const rec = await client.getRecord('Tasks', 'rec123')
+   * const rec = await client.records.getRecord('Tasks', 'rec123')
    * console.log(rec.fields.Name)
    * ```
    */
@@ -280,10 +297,12 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * multiple batches and flattens the responses.
    *
    * @typeParam TFields - Shape of record fields for this call.
+   *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
    * @param records - Records to create, each with a `fields` object.
-   * @param options - Creation options such as `typecast` and `returnFieldsByFieldId`.
+   * @param options - Creation options such as `typecast` and
+   *   `returnFieldsByFieldId`.
    *
    * @returns A flat list of created records.
    *
@@ -291,7 +310,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * await client.createRecords('Tasks', [
+   * await client.records.createRecords('Tasks', [
    *   { fields: { Name: 'Task A' } },
    *   { fields: { Name: 'Task B', Status: 'Todo' } },
    * ])
@@ -339,6 +358,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * batches of `MAX_RECORDS_PER_BATCH` records.
    *
    * @typeParam TFields - Shape of record fields for this call.
+   *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
    * @param records - Records to update (each must include an `id`).
@@ -353,7 +373,7 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * await client.updateRecords('Tasks', [
+   * await client.records.updateRecords('Tasks', [
    *   { id: 'rec1', fields: { Status: 'Doing' } },
    *   { id: 'rec2', fields: { Status: 'Done' } },
    * ])
@@ -425,15 +445,23 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * This is a convenience wrapper around `PATCH /{table}/{recordId}`.
    *
    * @typeParam TFields - Shape of record fields for this call.
+   *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
    * @param recordId - Airtable record ID.
    * @param fields - Partial set of fields to update.
-   * @param options - Subset of `client.records.UpdateRecordsOptions` without `performUpsert`.
+   * @param options - Subset of {@link UpdateRecordsOptions} without `performUpsert`.
    *
    * @returns The updated record.
    *
    * @throws `AirtableError` - If the update fails.
+   *
+   * @example
+   * ```ts
+   * const updated = await client.records.updateRecord('Tasks', 'rec123', {
+   *   Status: 'Done',
+   * })
+   * ```
    */
   async updateRecord<TFields = TDefaultFields>(
     tableIdOrName: string,
@@ -474,6 +502,11 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * @returns An object containing the record ID and a `deleted` flag.
    *
    * @throws `AirtableError` - If the deletion fails.
+   *
+   * @example
+   * ```ts
+   * await client.records.deleteRecord('Tasks', 'rec123')
+   * ```
    */
   async deleteRecord(
     tableIdOrName: string,
@@ -502,13 +535,13 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
    * @param tableIdOrName - Table ID or table name.
    * @param recordIds - List of record IDs to delete.
    *
-   * @returns A `DeleteRecordsResult` with per-record deletion status.
+   * @returns A {@link DeleteRecordsResult} with per-record deletion status.
    *
    * @throws `AirtableError` - If any batch fails.
    *
    * @example
    * ```ts
-   * await client.deleteRecords('Tasks', ['rec1', 'rec2'])
+   * await client.records.deleteRecords('Tasks', ['rec1', 'rec2'])
    * ```
    */
   async deleteRecords(

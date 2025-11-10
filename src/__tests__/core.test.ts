@@ -1,3 +1,4 @@
+import type { GetRecordParams, ListRecordsParams } from '@/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AirtableCoreClient,
@@ -73,9 +74,12 @@ describe('airtableCoreClient', () => {
       baseId: 'app123',
       endpointUrl: 'https://example.com',
       fetch: fetchMock,
+      apiVersion: '0.4.0',
+      customHeaders: { 'X-Foo': 'bar' },
       maxRetries: 7,
       retryInitialDelayMs: 250,
       retryOnStatuses: [429, 500],
+      noRetryIfRateLimited: false,
     })
 
     expect(core.apiKey).toBe('key-123')
@@ -85,6 +89,9 @@ describe('airtableCoreClient', () => {
     expect(core.maxRetries).toBe(7)
     expect(core.retryInitialDelayMs).toBe(250)
     expect(core.retryOnStatuses).toEqual([429, 500])
+    expect(core.apiVersion).toBe('0.4.0')
+    expect(core.customHeaders).toEqual({ 'X-Foo': 'bar' })
+    expect(core.noRetryIfRateLimited).toBe(false)
   })
 
   it('falls back to DEFAULT_ENDPOINT_URL and default retry options', () => {
@@ -100,6 +107,8 @@ describe('airtableCoreClient', () => {
     expect(core.maxRetries).toBe(5)
     expect(core.retryInitialDelayMs).toBe(500)
     expect(core.retryOnStatuses).toEqual([429, 500, 502, 503, 504])
+    // Default behavior: do NOT retry when rate limited
+    expect(core.noRetryIfRateLimited).toBe(true)
   })
 
   it('buildTableUrl builds table and record URLs with optional query', () => {
@@ -164,16 +173,21 @@ describe('airtableCoreClient', () => {
       fetch: vi.fn() as any,
     })
 
+    // Branch 1: no params -> undefined
     expect(core.buildListQuery()).toBeUndefined()
 
-    const params: import('@/types').ListRecordsParams = {
+    // Branch 2: with all fields, covering all if branches + fields/sort loops
+    const params: ListRecordsParams = {
       maxRecords: 100,
       pageSize: 50,
       offset: 'off',
       view: 'Grid',
       fields: ['Name', 'Status'],
       filterByFormula: 'Status="Todo"',
-      sort: [{ field: 'Name', direction: 'asc' }],
+      sort: [
+        { field: 'Name', direction: 'asc' }, // has direction
+        { field: 'CreatedAt' }, // no direction, hits the false branch of `if (spec.direction)`
+      ],
       cellFormat: 'json',
       timeZone: 'UTC',
       userLocale: 'en',
@@ -190,9 +204,17 @@ describe('airtableCoreClient', () => {
     expect(search.get('timeZone')).toBe('UTC')
     expect(search.get('userLocale')).toBe('en')
     expect(search.get('returnFieldsByFieldId')).toBe('true')
+
+    // fields[] loop
     expect(search.getAll('fields[]')).toEqual(['Name', 'Status'])
+
+    // sort loop: first has direction
     expect(search.get('sort[0][field]')).toBe('Name')
     expect(search.get('sort[0][direction]')).toBe('asc')
+
+    // Second has no direction, should not generate key direction
+    expect(search.get('sort[1][field]')).toBe('CreatedAt')
+    expect(search.get('sort[1][direction]')).toBeNull()
   })
 
   it('buildGetQuery returns undefined when no params and builds query otherwise', () => {
@@ -204,7 +226,7 @@ describe('airtableCoreClient', () => {
 
     expect(core.buildGetQuery()).toBeUndefined()
 
-    const params: import('@/types').GetRecordParams = {
+    const params: GetRecordParams = {
       cellFormat: 'string',
       timeZone: 'Asia/Shanghai',
       userLocale: 'zh',
@@ -365,25 +387,43 @@ describe('airtableCoreClient', () => {
     ).rejects.toBeInstanceOf(AirtableError)
   })
 
-  it('shouldRetry respects maxRetries and retryOnStatuses', () => {
+  it('shouldRetry respects maxRetries and retryOnStatuses when noRetryIfRateLimited is false', () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+      maxRetries: 2,
+      noRetryIfRateLimited: false,
+      retryOnStatuses: [429, 500],
+    })
+
+    // @ts-expect-error private method
+    expect(core.shouldRetry(429, 0)).toBe(true)
+    // @ts-expect-error private method
+    expect(core.shouldRetry(500, 1)).toBe(true)
+    // attempt >= maxRetries
+    // @ts-expect-error private method
+    expect(core.shouldRetry(429, 2)).toBe(false)
+    // status not in retryOnStatuses
+    // @ts-expect-error private method
+    expect(core.shouldRetry(404, 0)).toBe(false)
+  })
+
+  it('shouldRetry does not retry 429 by default when noRetryIfRateLimited is true', () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
       baseId: 'base',
       fetch: vi.fn() as any,
       maxRetries: 2,
       retryOnStatuses: [429, 500],
+      // noRetryIfRateLimited omitted -> default true
     })
 
-    // @ts-expect-error private
-    expect(core.shouldRetry(429, 0)).toBe(true)
-    // @ts-expect-error private
-    expect(core.shouldRetry(500, 1)).toBe(true)
-    // attempt >= maxRetries
-    // @ts-expect-error private
-    expect(core.shouldRetry(429, 2)).toBe(false)
-    // status not in retryOnStatuses
-    // @ts-expect-error private
-    expect(core.shouldRetry(404, 0)).toBe(false)
+    // @ts-expect-error private method
+    expect(core.shouldRetry(429, 0)).toBe(false)
+    // Other statuses still follow retryOnStatuses
+    // @ts-expect-error private method
+    expect(core.shouldRetry(500, 0)).toBe(true)
   })
 
   it('getRetryDelayMs uses Retry-After header when valid', () => {
@@ -399,7 +439,7 @@ describe('airtableCoreClient', () => {
       headers: new Headers({ 'Retry-After': '2' }),
     })
 
-    // @ts-expect-error private
+    // @ts-expect-error private method
     const delay = core.getRetryDelayMs(resp, 0)
     expect(delay).toBe(2000)
   })
@@ -418,27 +458,27 @@ describe('airtableCoreClient', () => {
     })
 
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0) // no jitter
-    // @ts-expect-error private
+    // @ts-expect-error private method
     const delay = core.getRetryDelayMs(resp, 1)
     expect(delay).toBe(100 * 2 ** 1) // base * 2^attempt
 
     randomSpy.mockRestore()
   })
 
-  it('sleep resolves after given timeout', async () => {
+  it('sleep helper resolves (covers setTimeout line)', async () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
       baseId: 'base',
       fetch: vi.fn() as any,
     })
 
-    const before = Date.now()
-    await core
-    const after = Date.now()
-    expect(after - before).toBeGreaterThanOrEqual(0)
+    // @ts-expect-error private method
+    await core.sleep(0)
+
+    expect(true).toBe(true)
   })
 
-  it('requestJson retries on retryable errors and eventually succeeds', async () => {
+  it('requestJson retries on retryable errors when noRetryIfRateLimited is false and eventually succeeds', async () => {
     const first = jsonResponse(429, {
       error: { type: 'RATE_LIMIT', message: 'slow down' },
     })
@@ -453,13 +493,14 @@ describe('airtableCoreClient', () => {
       apiKey: 'key',
       baseId: 'base',
       fetch: fetchMock as any,
+      noRetryIfRateLimited: false,
       retryOnStatuses: [429],
       maxRetries: 3,
       retryInitialDelayMs: 1,
     })
 
     // mock sleep avoid actual delay
-    // @ts-expect-error private
+    // @ts-expect-error private property
     core.sleep = vi.fn().mockResolvedValue(undefined)
 
     const url = new URL('https://example.com')
@@ -483,12 +524,13 @@ describe('airtableCoreClient', () => {
       apiKey: 'key',
       baseId: 'base',
       fetch: fetchMock as any,
+      noRetryIfRateLimited: false,
       retryOnStatuses: [429],
       maxRetries: 1,
       retryInitialDelayMs: 1,
     })
 
-    // @ts-expect-error private
+    // @ts-expect-error private property
     core.sleep = vi.fn().mockResolvedValue(undefined)
 
     const url = new URL('https://example.com')
@@ -498,17 +540,65 @@ describe('airtableCoreClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('sleep helper resolves (covers setTimeout line)', async () => {
+  it('requestJson does not retry 429 when noRetryIfRateLimited is true (default)', async () => {
+    const resp429 = jsonResponse(429, {
+      error: { type: 'RATE_LIMIT', message: 'no retry' },
+    })
+
+    const fetchMock = vi.fn().mockResolvedValue(resp429)
+
     const core = new AirtableCoreClient({
       apiKey: 'key',
       baseId: 'base',
-      fetch: vi.fn() as any,
+      fetch: fetchMock as any,
+      retryOnStatuses: [429],
+      maxRetries: 3,
+      retryInitialDelayMs: 1,
+      // noRetryIfRateLimited omitted → default true
     })
 
-    // Directly call private method, let Promise + setTimeout be executed
-    await core
+    const url = new URL('https://example.com')
 
-    // If it reaches here, it means the Promise has resolved, no additional assertions needed
-    expect(true).toBe(true)
+    await expect(core.requestJson(url, { method: 'GET' })).rejects.toBeInstanceOf(
+      AirtableError,
+    )
+    // Should only call fetch once (no retries on 429)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('requestJson merges apiVersion and customHeaders into headers and allows per-call override', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, { ok: true }),
+    )
+
+    const core = new AirtableCoreClient({
+      apiKey: 'secret',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      apiVersion: '0.4.0',
+      customHeaders: {
+        'X-Global': 'g',
+        'X-Override': 'global',
+      },
+    })
+
+    const url = new URL('https://example.com/api')
+
+    await core.requestJson(url, {
+      method: 'GET',
+      headers: {
+        'X-Local': 'l',
+        'X-Override': 'local',
+      },
+    })
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+
+    expect(headers.Authorization).toBe('Bearer secret')
+    expect(headers['X-Airtable-API-Version']).toBe('0.4.0')
+    expect(headers['X-Global']).toBe('g')
+    expect(headers['X-Local']).toBe('l')
+    expect(headers['X-Override']).toBe('local')
   })
 })

@@ -22,7 +22,7 @@ export class AirtableWebhooksClient {
    *
    * @example
    * ```ts
-   * const webhook = await client.createWebhook({
+   * const webhook = await client.webhooks.createWebhook({
    *   notificationUrl: 'https://example.com/airtable-webhook',
    *   specification: {
    *     options: {
@@ -52,6 +52,11 @@ export class AirtableWebhooksClient {
    * List all webhooks configured on this base.
    *
    * Airtable currently returns all webhooks in a single page.
+   *
+   * @example
+   * ```ts
+   * const { webhooks } = await client.webhooks.listWebhooks()
+   * ```
    */
   async listWebhooks(): Promise<ListWebhooksResult> {
     const url = this.core.buildBaseUrl('/webhooks')
@@ -65,6 +70,11 @@ export class AirtableWebhooksClient {
    *
    * Deleting a webhook immediately stops notifications and
    * frees up one webhook slot on the base.
+   *
+   * @example
+   * ```ts
+   * await client.webhooks.deleteWebhook('achXXXXXXXXXXXXXX')
+   * ```
    */
   async deleteWebhook(webhookId: string): Promise<void> {
     if (!webhookId) {
@@ -82,10 +92,16 @@ export class AirtableWebhooksClient {
    * Refresh a webhook to extend its expiration time.
    *
    * Thin wrapper around the "Refresh a webhook" endpoint:
-   * POST /v0/bases/{baseId}/webhooks/{webhookId}/refresh
+   * POST /{apiVersion}/bases/{baseId}/webhooks/{webhookId}/refresh
    *
    * The response has the same shape as "Create a webhook"
    * (id, macSecretBase64, expirationTime).
+   *
+   * @example
+   * ```ts
+   * const refreshed = await client.webhooks.refreshWebhook('achXXXXXXXXXXXXXX')
+   * console.log(refreshed.expirationTime)
+   * ```
    */
   async refreshWebhook(webhookId: string): Promise<CreateWebhookResult> {
     if (!webhookId) {
@@ -112,7 +128,7 @@ export class AirtableWebhooksClient {
    * let cursor: number | undefined
    *
    * do {
-   *   const page = await client.listWebhookPayloads('achXXXXXXXXXXXXXX', {
+   *   const page = await client.webhooks.listWebhookPayloads('achXXXXXXXXXXXXXX', {
    *     cursor,
    *     limit: 50,
    *   })

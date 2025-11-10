@@ -1,10 +1,10 @@
-import type { DeleteRecordsResult } from '@/types'
+import type { AirtableFieldSet, DeleteRecordsResult } from '@/types'
 import { describe, expect, it, vi } from 'vitest'
 import { AirtableRecordsClient } from '@/client/records-client'
 import { listKey, recordKey, recordPrefix, tablePrefix } from '@/utils'
 
 describe('airtableRecordsClient', () => {
-  interface TaskFields {
+  interface TaskFields extends AirtableFieldSet {
     Name: string
     Status?: 'Todo' | 'Doing' | 'Done'
   }
@@ -63,6 +63,7 @@ describe('airtableRecordsClient', () => {
 
     expect(result.records).toHaveLength(1)
     expect(result.records[0].id).toBe('rec1')
+    expect(result.records[0].fields.Name).toBe('Task 1')
   })
 
   it('listAllRecords concatenates pages until offset is exhausted', async () => {

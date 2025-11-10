@@ -1,4 +1,4 @@
-import type { AirtableClientOptions } from '@/types'
+import type { AirtableClientOptions, AirtableFieldSet } from '@/types'
 import { AirtableCoreClient } from './core'
 import { AirtableMetadataClient } from './meta-client'
 import { AirtableRecordsClient } from './records-client'
@@ -12,9 +12,15 @@ import { AirtableWebhooksClient } from './webhooks-client'
  * - `AirtableMetadataClient` exposed as `client.metadata`
  * - `AirtableWebhooksClient` exposed as `client.webhooks`
  *
+ * @typeParam TDefaultFields - Default shape of the `fields` object for records
+ *   when using `client.records.*` without specifying a more specific type.
+ *   Defaults to {@link AirtableFieldSet}.
+ *
  * @example
  * ```ts
- * type Task = {
+ * import type { AirtableFieldSet } from 'ts-airtable'
+ *
+ * interface Task extends AirtableFieldSet {
  *   Name: string
  *   Status?: 'Todo' | 'Doing' | 'Done'
  * }
@@ -28,7 +34,9 @@ import { AirtableWebhooksClient } from './webhooks-client'
  * console.log(page.records[0].fields.Name)
  * ```
  */
-export class AirtableClient<TDefaultFields = Record<string, unknown>> {
+export class AirtableClient<
+  TDefaultFields extends AirtableFieldSet = AirtableFieldSet,
+> {
   /**
    * Low-level HTTP / retry / URL utilities.
    * Exposed in case advanced consumers want direct access.

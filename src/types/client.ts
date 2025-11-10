@@ -1,7 +1,12 @@
 import type { AirtableRecordsCacheOptions } from './cache-store'
 
+export type CustomHeaders = Record<string, string | number | boolean>
+
 /**
- * Options for constructing an `AirtableClient` instance.
+ * Options for constructing an {@link AirtableClient} instance.
+ *
+ * The same shape (without `baseId`) is also used by the high-level
+ * `Airtable.configure(...)` helper as global defaults.
  */
 export interface AirtableClientOptions {
   /**
@@ -12,7 +17,7 @@ export interface AirtableClientOptions {
    * @example
    * ```ts
    * const client = new AirtableClient({
-   *   apiKey: process.env.AIRTABLE_TOKEN!,
+   *   apiKey: process.env.AIRTABLE_API_KEY!,
    *   baseId: 'appXXXXXXXXXXXXXX',
    * })
    * ```
@@ -20,12 +25,33 @@ export interface AirtableClientOptions {
   apiKey: string
 
   /**
+   * Optional Airtable API version string.
+   *
+   * This is accepted for compatibility with the official `airtable`
+   * client. At the moment this library always talks to the v0 HTTP API
+   * and does **not** interpret this value.
+   *
+   * If you need to target a different API surface, prefer configuring
+   * {@link endpointUrl} instead (e.g. pointing at a proxy or mock).
+   */
+  apiVersion?: string
+
+  /**
    * The base ID, e.g. `"appXXXXXXXXXXXXXX"`.
    *
    * The client is always bound to a single base. To work with multiple bases,
-   * construct multiple `AirtableClient` instances.
+   * construct multiple `AirtableClient` instances (or use `Airtable.base(...)`
+   * from the façade).
    */
   baseId: string
+
+  /**
+   * Global custom headers added to every request.
+   *
+   * Values will be stringified. Per-request headers can still
+   * override these.
+   */
+  customHeaders?: CustomHeaders
 
   /**
    * Override Airtable API root URL.
@@ -45,14 +71,31 @@ export interface AirtableClientOptions {
    * - Tests, where you may wish to mock fetch.
    *
    * If omitted, the global `fetch` function is used.
+   *
+   * This also makes it possible to use the client in edge runtimes or
+   * other environments that provide a standards-compliant `fetch`.
    */
   fetch?: typeof fetch
+
+  /**
+   * When `true`, 429 ("Rate limited") responses are **not** retried, even if
+   * 429 is present in {@link retryOnStatuses}.
+   *
+   * This flag is equivalent to removing `429` from `retryOnStatuses`, but
+   * can be more convenient in simple setups.
+   *
+   * Default: `true`.
+   *
+   * If you need fine-grained control over which statuses are retried, prefer
+   * setting {@link retryOnStatuses} explicitly.
+   */
+  noRetryIfRateLimited?: boolean
 
   /**
    * Maximum number of retry attempts for retryable HTTP status codes.
    *
    * This controls how many times a single request may be retried when the
-   * response status is one of `AirtableClientOptions.retryOnStatuses`.
+   * response status is one of {@link retryOnStatuses}.
    *
    * Default: `5`.
    */
@@ -76,6 +119,9 @@ export interface AirtableClientOptions {
    *
    * Defaults to `[429, 500, 502, 503, 504]`.
    * Set to `[]` to disable automatic retries entirely.
+   *
+   * Combined with {@link noRetryIfRateLimited}, you can quickly toggle
+   * whether 429 is retried or not.
    */
   retryOnStatuses?: number[]
 
@@ -86,9 +132,9 @@ export interface AirtableClientOptions {
    * `iterateRecords` (first page), and `getRecord` can reuse cached responses
    * instead of hitting the Airtable HTTP API every time.
    *
-   * Under the hood this delegates to an {@link AirtableCacheStore} implementation
-   * (in-memory by default, if you supply one) and uses stable, prefixed keys
-   * derived from:
+   * Under the hood this delegates to an {@link AirtableCacheStore}
+   * implementation (for example the built-in `InMemoryCacheStore`) and uses
+   * stable, prefixed keys derived from:
    *
    * - `baseId`
    * - table name / ID
@@ -103,31 +149,8 @@ export interface AirtableClientOptions {
    * When omitted, the client performs no caching and every read is sent
    * directly to Airtable.
    *
-   * @example
-   * // Enable caching with default in-memory store and a 30s TTL
-   * const client = new AirtableClient({
-   *   apiKey: process.env.AIRTABLE_TOKEN!,
-   *   baseId: 'appXXXXXXXXXXXXXX',
-   *   recordsCache: {
-   *     defaultTtlMs: 30_000,
-   *   },
-   * })
-   *
-   * @example
-   * // Use a custom async store and disable getRecord caching
-   * const client = new AirtableClient({
-   *   apiKey: process.env.AIRTABLE_TOKEN!,
-   *   baseId: 'appXXXXXXXXXXXXXX',
-   *   recordsCache: {
-   *     store: myRedisBackedStore,
-   *     defaultTtlMs: 60_000,
-   *     methods: {
-   *       listRecords: true,
-   *       listAllRecords: true,
-   *       getRecord: false,
-   *     },
-   *   },
-   * })
+   * This option can also be set globally via `Airtable.configure({ recordsCache })`
+   * and overridden per-base via `Airtable.base(baseId, { recordsCache })`.
    */
   recordsCache?: AirtableRecordsCacheOptions
 }

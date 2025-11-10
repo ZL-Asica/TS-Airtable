@@ -29,7 +29,7 @@ export class AirtableMetadataClient {
    *
    * @example
    * ```ts
-   * const meta = await client.listBases()
+   * const meta = await client.metadata.listBases()
    * for (const base of meta.bases) {
    *   console.log(base.id, base.name, base.permissionLevel)
    * }
@@ -56,7 +56,7 @@ export class AirtableMetadataClient {
    *
    * @example
    * ```ts
-   * const bases = await client.listAllBases()
+   * const bases = await client.metadata.listAllBases()
    * const first = bases[0]
    * ```
    */
@@ -81,12 +81,12 @@ export class AirtableMetadataClient {
    * you can also pass a different `baseId` if your token has
    * access to multiple bases.
    *
-   * @param baseId Optional base ID. Defaults to `this.baseId`.
+   * @param baseId Optional base ID. Defaults to the client's `baseId`.
    * @returns Base-wide schema: tables, fields and views.
    *
    * @example
    * ```ts
-   * const schema = await client.getBaseSchema()
+   * const schema = await client.metadata.getBaseSchema()
    * const table = schema.tables[0]
    * console.log(table.name, table.fields.length)
    * ```
@@ -109,13 +109,13 @@ export class AirtableMetadataClient {
    * Internally this calls `getBaseSchema` and then finds the
    * matching table, so it costs one full schema request.
    *
-   * @param tableIdOrName Table ID (tblXXXX) or table name.
-   * @param baseId Optional base ID. Defaults to `this.baseId`.
+   * @param tableIdOrName Table ID (`tblXXXX`) or table name.
+   * @param baseId Optional base ID. Defaults to the client's `baseId`.
    * @returns The matching table schema, or `undefined` if not found.
    *
    * @example
    * ```ts
-   * const projects = await client.getTableSchema('Projects')
+   * const projects = await client.metadata.getTableSchema('Projects')
    * if (projects) {
    *   console.log(projects.fields.map(f => f.name))
    * }
@@ -138,13 +138,13 @@ export class AirtableMetadataClient {
    * You can use either the view ID or name. If `baseId` is not
    * provided, the client-level `baseId` will be used.
    *
-   * @param viewIdOrName View ID (viwXXXX) or view name.
-   * @param baseId Optional base ID. Defaults to `this.baseId`.
+   * @param viewIdOrName View ID (`viwXXXX`) or view name.
+   * @param baseId Optional base ID. Defaults to the client's `baseId`.
    * @returns View metadata, including type and name.
    *
    * @example
    * ```ts
-   * const view = await client.getViewMetadata('All tasks')
+   * const view = await client.metadata.getViewMetadata('All tasks')
    * console.log(view.id, view.type)
    * ```
    */

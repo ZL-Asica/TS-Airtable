@@ -45,9 +45,16 @@ describe('airtable global facade', () => {
     expect(typeof Airtable.base).toBe('function')
   })
 
-  it('configure + base create AirtableClient with merged options', async () => {
+  it('configure + base create AirtableClient with merged options (including new fields)', async () => {
     const fakeFetch = vi.fn() as unknown as typeof fetch
     const retryStatuses = [429, 500]
+    const customHeaders = {
+      'X-Test': 'abc',
+      'X-Flag': 1,
+    }
+    const globalRecordsCache = {
+      defaultTtlMs: 12_345,
+    }
 
     // Use a "constructor style" implementation to ensure `new AirtableClientMock()` works
     AirtableClientMock.mockImplementation(function (this: any, opts: any) {
@@ -61,11 +68,15 @@ describe('airtable global facade', () => {
 
     Airtable.configure({
       apiKey: 'testApiKey',
+      apiVersion: 'v0',
       endpointUrl: 'https://example.com',
       fetch: fakeFetch,
+      noRetryIfRateLimited: true,
       maxRetries: 7,
       retryInitialDelayMs: 250,
       retryOnStatuses: retryStatuses,
+      customHeaders,
+      recordsCache: globalRecordsCache,
     })
 
     const base = Airtable.base<{ name: string }>('appBase123')
@@ -77,16 +88,53 @@ describe('airtable global facade', () => {
     const instance = AirtableClientMock.mock.instances[0] as any
     expect(instance._opts).toEqual({
       apiKey: 'testApiKey',
+      apiVersion: 'v0',
       baseId: 'appBase123',
       endpointUrl: 'https://example.com',
       fetch: fakeFetch,
+      noRetryIfRateLimited: true,
       maxRetries: 7,
       retryInitialDelayMs: 250,
       retryOnStatuses: retryStatuses,
+      customHeaders,
+      recordsCache: globalRecordsCache,
     })
 
     // base.id / base.client metadata should be correct
     expect(base.id).toBe('appBase123')
+    expect(base.client).toBe(instance)
+  })
+
+  it('per-base recordsCache overrides global recordsCache', async () => {
+    const globalRecordsCache = { defaultTtlMs: 10_000 }
+    const baseRecordsCache = { defaultTtlMs: 5_000 }
+
+    AirtableClientMock.mockImplementation(function (this: any, opts: any) {
+      ;(this as any)._opts = opts
+      ;(this as any).records = {}
+    })
+
+    const { Airtable } = await import('@/airtable')
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      recordsCache: globalRecordsCache,
+    })
+
+    const base = Airtable.base<{ name: string }>('appBase123', {
+      recordsCache: baseRecordsCache,
+    })
+
+    expect(AirtableClientMock).toHaveBeenCalledTimes(1)
+    const instance = AirtableClientMock.mock.instances[0] as any
+
+    // Per-base option should win
+    expect(instance._opts.recordsCache).toBe(baseRecordsCache)
+    expect(instance._opts.recordsCache).not.toBe(globalRecordsCache)
+
+    // Sanity check: other required fields are still there
+    expect(instance._opts.apiKey).toBe('testApiKey')
+    expect(instance._opts.baseId).toBe('appBase123')
     expect(base.client).toBe(instance)
   })
 

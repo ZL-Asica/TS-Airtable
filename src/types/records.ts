@@ -1,7 +1,10 @@
+import type { AirtableFieldSet } from './field-values'
+
 /**
  * Generic Airtable record wrapper.
  *
  * @typeParam TFields - Shape of the `fields` object for this record.
+ *   By default this is `AirtableFieldSet` (see {@link AirtableFieldSet}).
  *
  * @example
  * ```ts
@@ -13,8 +16,20 @@
  *   fields: { Name: 'Buy milk', Done: false },
  * }
  * ```
+ *
+ * @example
+ * ```ts
+ * import type { AirtableFieldSet, AirtableAttachment } from 'ts-airtable'
+ *
+ * interface TaskFields extends AirtableFieldSet {
+ *   Name: string
+ *   Attachments?: readonly AirtableAttachment[]
+ * }
+ *
+ * const record: AirtableRecord<TaskFields> = ...
+ * ```
  */
-export interface AirtableRecord<TFields = Record<string, unknown>> {
+export interface AirtableRecord<TFields = AirtableFieldSet> {
   /**
    * Airtable record ID (e.g. `"recXXXXXXXXXXXXXX"`).
    */
@@ -195,7 +210,7 @@ export interface GetRecordParams {
  *
  * @example
  * ```ts
- * await client.createRecords('Tasks', [
+ * await client.records.createRecords('Tasks', [
  *   { fields: { Name: 'New task', Status: 'Todo' } },
  * ])
  * ```
@@ -245,7 +260,7 @@ export interface CreateRecordsResult<TFields> {
  *
  * @example
  * ```ts
- * await client.updateRecords('Tasks', [
+ * await client.records.updateRecords('Tasks', [
  *   { id: 'rec1', fields: { Status: 'Done' } },
  * ])
  * ```
@@ -344,4 +359,75 @@ export interface DeleteRecordsResult {
      */
     deleted: boolean
   }>
+}
+
+/**
+ * Strongly typed sort parameter that uses `keyof TFields` for the field name.
+ *
+ * This mirrors the `SortParameter<TFields>` type from the official `airtable`
+ * package, but is defined in terms of {@link SortDirection}.
+ *
+ * @typeParam TFields - Field set shape whose keys are valid sort fields.
+ */
+export interface AirtableSortParameter<TFields> {
+  /**
+   * Field name (or ID) to sort by, constrained to keys of {@link TFields}.
+   */
+  field: keyof TFields
+
+  /**
+   * Sort direction (`"asc"` or `"desc"`). Defaults to `"asc"`.
+   */
+  direction?: SortDirection
+}
+
+/**
+ * Generic, strongly typed variant of {@link ListRecordsParams}.
+ *
+ * This mirrors the `QueryParams<TFields>` type from the official `airtable`
+ * package by:
+ *
+ * - using `keyof TFields` for `fields`
+ * - using {@link AirtableSortParameter} for `sort`
+ *
+ * All other properties map directly to {@link ListRecordsParams}.
+ *
+ * @typeParam TFields - Field set shape whose keys are valid field names.
+ */
+export interface AirtableQueryParams<TFields>
+  extends Omit<ListRecordsParams, 'fields' | 'sort'> {
+  /**
+   * Subset of `TFields` keys to include in the response.
+   */
+  fields?: (keyof TFields)[]
+
+  /**
+   * Sort specification using keys of `TFields`.
+   */
+  sort?: AirtableSortParameter<TFields>[]
+
+  /**
+   * Extra properties kept for compatibility with the official `airtable`
+   * client. They are accepted at the type level but are not interpreted
+   * by this library.
+   */
+  method?: string
+  recordMetadata?: string[]
+}
+
+/**
+ * Record shape used in some higher level helpers, compatible with the
+ * `RecordData<TFields>` type from the official client.
+ *
+ * It is essentially an {@link AirtableRecord} plus an optional
+ * `commentCount` property.
+ *
+ * @typeParam TFields - Shape of the `fields` object for this record.
+ */
+export interface AirtableRecordData<TFields> extends AirtableRecord<TFields> {
+  /**
+   * Optional number of comments associated with this record, when returned
+   * by endpoints that include comment metadata.
+   */
+  commentCount?: number
 }
