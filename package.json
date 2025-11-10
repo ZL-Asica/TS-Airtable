@@ -35,7 +35,6 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -64,7 +63,7 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build",
-    "docs": "typedoc --exclude 'src/__tests__/**/*' && pnpm docs:clean",
+    "docs": "typedoc && pnpm docs:clean",
     "docs:clean": "node fix-markdown.ts && rm -rf docs/.vitepress/dist docs/.vitepress/cache",
     "docs:dev": "vitepress dev docs",
     "docs:publish:ci": "pnpm run docs && rm -rf docs/api.index.md && pnpm run docs:build",

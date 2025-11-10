@@ -1,4 +1,4 @@
-import type { AirtableErrorResponseBody } from '@/errors'
+import type { AirtableErrorResponseBody } from '@/types'
 import { describe, expect, it } from 'vitest'
 import { AirtableError, isAirtableError } from '@/errors'
 

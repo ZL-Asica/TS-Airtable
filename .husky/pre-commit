@@ -1,1 +1,4 @@
 npx lint-staged
+pnpm run test:coverage
+pnpm run docs
+pnpm run build

@@ -30,8 +30,7 @@ docs/.vitepress/dist
 docs/.vitepress/cache
 docs/api/
 !docs/api/index.md
-.vitepress/cache
-.vitepress/dist
+.vitepress/*
 
 # Test
 coverage/
