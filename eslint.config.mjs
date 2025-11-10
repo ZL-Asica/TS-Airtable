@@ -9,6 +9,8 @@ export default antfu({
     'README.md',
   ],
 }, {
-  files: ['docs/.vitepress/**/*.vue'],
-  vue: true,
+  files: ['docs/.vitepress/**.vue'],
+  vue: {
+    a11y: true,
+  },
 })
