@@ -159,7 +159,7 @@ console.log(webhooks.webhooks.length)
 - `client.metadata` – bases, base schema, table & view metadata
 - `client.webhooks` – create / list / refresh / delete, plus payload listing
 
-## Optional caching (very short version)
+## Optional caching (quick overview)
 
 Record caching for reads (`listRecords`, `listAllRecords`, `iterateRecords`, `getRecord`) is **opt-in**.
 

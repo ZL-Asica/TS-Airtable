@@ -20,7 +20,7 @@
 - [x] Built-in retries with exponential backoff
 - [x] Support Node, Web, Edge, and even more environments
 - [x] Built-in pluggable **record caching** (with a built-in in-memory store)
-- [ ] Built-in logging interface to trigger logging when needed
+- [ ] (WIP) Built-in logging interface to trigger logging when needed
 
 It’s meant to be boring, predictable glue around Airtable’s HTTP API — no magic.
 

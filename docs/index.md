@@ -27,9 +27,6 @@ features:
   - icon: 🧩
     title: Airtable.js-style façade
     details: Familiar Airtable.configure + Airtable.base syntax on top of a small core client for records, metadata and webhooks.
-  - icon: 🧠
-    title: TypeScript-first
-    details: Strongly-typed records, metadata, webhooks and errors, with generics that match your Airtable schema.
   - icon: 🧊
     title: Optional record caching
     details: Pluggable record cache for list/get operations, with a built-in in-memory LRU+TTL store and automatic invalidation on mutations.
