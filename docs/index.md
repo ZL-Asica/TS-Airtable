@@ -4,7 +4,7 @@ layout: home
 
 hero:
   name: 'Airtable TS'
-  text: 'A tiny, modern Airtable Web API client'
+  text: 'A tiny, modern Airtable Web and Node API client'
   tagline: 'Fetch-based, TypeScript-first, with Airtable.js-style façade plus metadata & webhooks.'
   image:
     src: /favicon.svg

@@ -20,19 +20,22 @@
     "url": "https://github.com/ZL-Asica/ts-airtable/issues"
   },
   "keywords": [
-    "airtable-api",
-    "airtable-client",
-    "airtable-web-api",
-    "airtable-sdk",
+    "airtable",
+    "airtable api",
+    "airtable client",
+    "airtable js",
+    "airtable typescript",
+    "airtable sdk",
+    "airtable web api",
     "library",
     "utilities",
-    "airtable",
-    "zl-asica",
-    "zla",
-    "ZL Asica"
+    "ZL Asica",
+    "zl-asica"
   ],
+  "sideEffects": false,
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -47,9 +50,12 @@
     "README.md",
     "dist"
   ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "lint": "eslint",
-    "lint:fix": "eslint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest",
@@ -64,7 +70,7 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "release": "pnpm test:ci && pnpm build && pnpm publish --no-git-checks",
-    "postinstall": "husky || true"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^6.2.0",

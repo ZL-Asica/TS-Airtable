@@ -9,7 +9,7 @@
 [![Vitest][vitest-badge]][vitest-link]
 [![Eslint][eslint-badge]][eslint-link]
 
-> A tiny, fetch-based JavaScript/TypeScript Airtable Web API client.
+> A community maintained tiny, fetch-based JavaScript and TypeScript Airtable Web and Node API client.
 
 📚 **[Documentation](https://airtable.zla.app)**
 

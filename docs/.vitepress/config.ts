@@ -9,7 +9,7 @@ import pkg from '../../package.json' with { type: 'json' }
 const vitePressConfig: UserConfig<DefaultTheme.Config> = {
   lang: 'en-US',
   title: 'Airtable TS',
-  description: 'A community version of TypeScript client for Airtable.',
+  description: 'A community version of Javascript and TypeScript client for Airtable.',
   cleanUrls: true,
   head: [
     ['meta', { name: 'keywords', content: 'airtable, typescript, javascript, client, zl-asica' }],
