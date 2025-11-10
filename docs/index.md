@@ -5,7 +5,7 @@ layout: home
 hero:
   name: 'Airtable TS'
   text: 'A tiny, modern Airtable Web and Node API client'
-  tagline: 'Fetch-based, TypeScript-first, with Airtable.js-style façade plus metadata & webhooks.'
+  tagline: 'Fetch-based, TypeScript-first. Airtable.js-style façade plus metadata, webhooks and optional record caching.'
   image:
     src: /favicon.svg
     alt: 'Airtable TS Logo'
@@ -22,14 +22,17 @@ hero:
 
 features:
   - icon: ⚡
-    title: Tiny & fetch-based
-    details: Minimal runtime, no bloat. Uses standard fetch in Node 18+ or any custom implementation you provide.
+    title: Tiny, fetch-based & edge-ready
+    details: Minimal runtime, no bloat. Uses standard fetch and runs in Node 18+, modern browsers and most edge runtimes that support fetch.
   - icon: 🧩
     title: Airtable.js-style façade
-    details: Familiar Airtable.configure + Airtable.base syntax on top, with a well-structured core client underneath.
+    details: Familiar Airtable.configure + Airtable.base syntax on top of a small core client for records, metadata and webhooks.
   - icon: 🧠
     title: TypeScript-first
     details: Strongly-typed records, metadata, webhooks and errors, with generics that match your Airtable schema.
+  - icon: 🧊
+    title: Optional record caching
+    details: Pluggable record cache for list/get operations, with a built-in in-memory LRU+TTL store and automatic invalidation on mutations.
   - icon: 🔁
     title: Built-in retries
     details: Exponential backoff, jitter and Retry-After support for smoother handling of rate limits and flaky networks.

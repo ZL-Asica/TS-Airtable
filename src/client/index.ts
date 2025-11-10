@@ -52,7 +52,10 @@ export class AirtableClient<TDefaultFields = Record<string, unknown>> {
 
   constructor(options: AirtableClientOptions) {
     this.core = new AirtableCoreClient(options)
-    this.records = new AirtableRecordsClient<TDefaultFields>(this.core)
+    this.records = new AirtableRecordsClient<TDefaultFields>(
+      this.core,
+      options.recordsCache,
+    )
     this.metadata = new AirtableMetadataClient(this.core)
     this.webhooks = new AirtableWebhooksClient(this.core)
   }

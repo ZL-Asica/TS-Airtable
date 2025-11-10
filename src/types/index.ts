@@ -5,6 +5,7 @@
  */
 
 export * from './airtable'
+export * from './cache-store'
 export * from './client'
 export * from './metadata'
 export * from './records'

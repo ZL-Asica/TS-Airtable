@@ -14,7 +14,7 @@ jobs:
     permissions:
       contents: write # Required for github release
       packages: write # Required for NPM publish
-      id-token: write # Required for JSR publish
+      # id-token: write # Required for JSR publish
 
     steps:
       # Step 1: Checkout code

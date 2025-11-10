@@ -1,6 +1,7 @@
 import type { DeleteRecordsResult } from '@/types'
 import { describe, expect, it, vi } from 'vitest'
 import { AirtableRecordsClient } from '@/client/records-client'
+import { listKey, recordKey, recordPrefix, tablePrefix } from '@/utils'
 
 describe('airtableRecordsClient', () => {
   interface TaskFields {
@@ -10,6 +11,7 @@ describe('airtableRecordsClient', () => {
 
   const makeCore = () => {
     return {
+      baseId: 'appTest',
       buildTableUrl: vi.fn(() => new URL('https://example.com/table')),
       buildListQuery: vi.fn((params?: any) =>
         params ? new URLSearchParams({ q: '1' }) : undefined,
@@ -27,6 +29,10 @@ describe('airtableRecordsClient', () => {
       requestJson: vi.fn(),
     } as any
   }
+
+  // ---------------------------------------------------------------------------
+  // Basic test (without cache)
+  // ---------------------------------------------------------------------------
 
   it('listRecords delegates to core with built URL and query', async () => {
     const core = makeCore()
@@ -135,6 +141,32 @@ describe('airtableRecordsClient', () => {
     }
 
     expect(collected).toEqual(['rec1', 'rec2'])
+  })
+
+  it('iterateRecords walks multiple pages when maxRecords is not set', async () => {
+    const core = makeCore()
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    const listSpy = vi.spyOn(client, 'listRecords')
+
+    listSpy
+      .mockResolvedValueOnce({
+        records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+        offset: 'next',
+      })
+      .mockResolvedValueOnce({
+        records: [{ id: 'rec2', fields: { Name: 'Task 2' } }],
+        offset: undefined,
+      })
+
+    const ids: string[] = []
+    for await (const rec of client.iterateRecords('Tasks')) {
+      ids.push(rec.id)
+    }
+
+    expect(ids).toEqual(['rec1', 'rec2'])
+    // Confirm it actually went though 2 pages, which definitely executed `offset = page.offset`
+    expect(listSpy).toHaveBeenCalledTimes(2)
   })
 
   it('getRecord builds URL with recordId and get query', async () => {
@@ -258,7 +290,7 @@ describe('airtableRecordsClient', () => {
     )
 
     expect(core.buildReturnFieldsQuery).toHaveBeenCalledWith(false)
-    expect(result.records).toEqual([]) // 因为 resp.records 没有
+    expect(result.records).toEqual([]) // Because resp.records is not present
     expect(result.createdRecords?.[0].id).toBe('recCreated')
     expect(result.updatedRecords?.[0].id).toBe('recUpdated')
   })
@@ -337,29 +369,357 @@ describe('airtableRecordsClient', () => {
     expect(res.records).toHaveLength(4) // Because each batch returns 2 mock records
   })
 
-  it('iterateRecords walks multiple pages when maxRecords is not set', async () => {
+  // ---------------------------------------------------------------------------
+  // Cache behavior + error handling tests
+  // ---------------------------------------------------------------------------
+
+  it('listRecords returns cached page when cache hit', async () => {
     const core = makeCore()
-    const client = new AirtableRecordsClient<TaskFields>(core)
-
-    const listSpy = vi.spyOn(client, 'listRecords')
-
-    listSpy
-      .mockResolvedValueOnce({
-        records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
-        offset: 'next',
-      })
-      .mockResolvedValueOnce({
-        records: [{ id: 'rec2', fields: { Name: 'Task 2' } }],
-        offset: undefined,
-      })
-
-    const ids: string[] = []
-    for await (const rec of client.iterateRecords('Tasks')) {
-      ids.push(rec.id)
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
     }
 
-    expect(ids).toEqual(['rec1', 'rec2'])
-    // 确认确实走了两页，也就一定执行了 `offset = page.offset`
-    expect(listSpy).toHaveBeenCalledTimes(2)
+    const cachedPage = {
+      records: [{ id: 'recCached', fields: { Name: 'Cached' } }],
+      offset: undefined as string | undefined,
+    }
+
+    store.get.mockResolvedValue(cachedPage)
+
+    const client = new AirtableRecordsClient<TaskFields>(core, { store })
+
+    const params = { view: 'Grid view' as const }
+    const result = await client.listRecords('Tasks', params)
+
+    const expectedKey = listKey(core.baseId, 'Tasks', params)
+
+    expect(store.get).toHaveBeenCalledWith(expectedKey)
+    expect(core.requestJson).not.toHaveBeenCalled()
+    expect(result).toBe(cachedPage)
+  })
+
+  it('listRecords populates cache on miss', async () => {
+    const core = makeCore()
+    const store = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+      offset: undefined,
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      defaultTtlMs: 1234,
+    })
+
+    const params = { view: 'Grid view' as const }
+    const result = await client.listRecords('Tasks', params)
+
+    const expectedKey = listKey(core.baseId, 'Tasks', params)
+
+    expect(store.get).toHaveBeenCalledWith(expectedKey)
+    expect(store.set).toHaveBeenCalledWith(
+      expectedKey,
+      expect.objectContaining({
+        records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+      }),
+      1234,
+    )
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+    expect(result.records[0].id).toBe('rec1')
+  })
+
+  it('listRecords respects methods.listRecords = false (no caching)', async () => {
+    const core = makeCore()
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+      offset: undefined,
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      methods: { listRecords: false },
+    })
+
+    await client.listRecords('Tasks', { view: 'Grid' })
+
+    expect(store.get).not.toHaveBeenCalled()
+    expect(store.set).not.toHaveBeenCalled()
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+  })
+
+  it('getRecord returns cached record when cache hit', async () => {
+    const core = makeCore()
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
+    }
+
+    const params = { userLocale: 'en' as const }
+    const key = recordKey(core.baseId, 'Tasks', 'rec1', params)
+
+    store.get.mockResolvedValue({
+      id: 'rec1',
+      fields: { Name: 'Cached' },
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core, { store })
+    const rec = await client.getRecord('Tasks', 'rec1', params)
+
+    expect(store.get).toHaveBeenCalledWith(key)
+    expect(core.requestJson).not.toHaveBeenCalled()
+    expect(rec.id).toBe('rec1')
+    expect(rec.fields.Name).toBe('Cached')
+  })
+
+  it('getRecord populates cache on miss', async () => {
+    const core = makeCore()
+    const store = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      id: 'rec1',
+      fields: { Name: 'From API' },
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      defaultTtlMs: 500,
+    })
+
+    const params = { userLocale: 'en' as const }
+    const rec = await client.getRecord('Tasks', 'rec1', params)
+
+    const expectedKey = recordKey(core.baseId, 'Tasks', 'rec1', params)
+
+    expect(store.get).toHaveBeenCalledWith(expectedKey)
+    expect(store.set).toHaveBeenCalledWith(
+      expectedKey,
+      expect.objectContaining({ id: 'rec1' }),
+      500,
+    )
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+    expect(rec.fields.Name).toBe('From API')
+  })
+
+  it('getRecord respects methods.getRecord = false (no caching)', async () => {
+    const core = makeCore()
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      id: 'rec1',
+      fields: { Name: 'API' },
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      methods: { getRecord: false },
+    })
+
+    await client.getRecord('Tasks', 'rec1')
+
+    expect(store.get).not.toHaveBeenCalled()
+    expect(store.set).not.toHaveBeenCalled()
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+  })
+
+  it('cache get errors are reported via onError but swallowed by default', async () => {
+    const core = makeCore()
+    const error = new Error('get failed')
+
+    const store = {
+      get: vi.fn().mockRejectedValue(error),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+      offset: undefined,
+    })
+
+    const onError = vi.fn()
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      onError,
+      // failOnCacheError defaults to false
+    })
+
+    const params = { view: 'Grid' as const }
+    const result = await client.listRecords('Tasks', params)
+
+    expect(result.records[0].id).toBe('rec1')
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalled()
+
+    const calls = onError.mock.calls
+    const key = listKey(core.baseId, 'Tasks', params)
+
+    expect(
+      calls.some(([_err, ctx]) => ctx.op === 'get' && ctx.key === key),
+    ).toBe(true)
+  })
+
+  it('cache get errors are rethrown when failOnCacheError is true', async () => {
+    const core = makeCore()
+    const error = new Error('get failed')
+
+    const store = {
+      get: vi.fn().mockRejectedValue(error),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
+    }
+
+    const onError = vi.fn()
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      onError,
+      failOnCacheError: true,
+    })
+
+    await expect(
+      client.listRecords('Tasks', { view: 'Grid' }),
+    ).rejects.toBe(error)
+
+    expect(onError).toHaveBeenCalled()
+    expect(core.requestJson).not.toHaveBeenCalled()
+  })
+
+  it('cache set errors are swallowed by default', async () => {
+    const core = makeCore()
+    const error = new Error('set failed')
+
+    const store = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockRejectedValue(error),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+      offset: undefined,
+    })
+
+    const onError = vi.fn()
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      onError,
+    })
+
+    const result = await client.listRecords('Tasks', { view: 'Grid' })
+
+    expect(result.records[0].id).toBe('rec1')
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+    expect(store.set).toHaveBeenCalled()
+    expect(onError).toHaveBeenCalled()
+
+    const calls = onError.mock.calls
+    expect(
+      calls.some(([_err, ctx]) => ctx.op === 'set' && ctx.key),
+    ).toBe(true)
+  })
+
+  it('mutations invalidate table and record cache via deleteByPrefix', async () => {
+    const core = makeCore()
+    core.requestJson.mockResolvedValue({
+      id: 'rec1',
+      fields: { Name: 'Updated' },
+    })
+
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const client = new AirtableRecordsClient<TaskFields>(core, { store })
+
+    await client.updateRecord('Tasks', 'rec1', { Name: 'Updated' })
+
+    const prefixes = store.deleteByPrefix.mock.calls.map(args => args[0])
+
+    expect(prefixes).toContain(tablePrefix(core.baseId, 'Tasks'))
+    expect(prefixes).toContain(recordPrefix(core.baseId, 'Tasks', 'rec1'))
+  })
+
+  it('cache delete errors are reported via onError but swallowed when failOnCacheError is false', async () => {
+    const core = makeCore()
+    const error = new Error('delete failed')
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', deleted: true }],
+    })
+
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn().mockRejectedValue(error),
+    }
+
+    const onError = vi.fn()
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      onError,
+      // failOnCacheError defaults to false
+    })
+
+    const res = await client.deleteRecords('Tasks', ['rec1'])
+
+    expect(res.records[0]).toEqual({ id: 'rec1', deleted: true })
+    expect(core.requestJson).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalled()
+
+    const calls = onError.mock.calls
+    expect(
+      calls.some(([_err, ctx]) => ctx.op === 'delete' && ctx.prefix),
+    ).toBe(true)
+  })
+
+  it('cache delete errors are rethrown when failOnCacheError is true', async () => {
+    const core = makeCore()
+    const error = new Error('delete failed')
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+    })
+
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn().mockRejectedValue(error),
+    }
+
+    const onError = vi.fn()
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store,
+      onError,
+      failOnCacheError: true,
+    })
+
+    await expect(
+      client.createRecords('Tasks', [{ fields: { Name: 'Task 1' } }]),
+    ).rejects.toBe(error)
+
+    expect(onError).toHaveBeenCalled()
   })
 })

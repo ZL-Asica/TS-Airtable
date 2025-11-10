@@ -18,6 +18,9 @@
 - [x] Airtable.js-style façade (`Airtable.configure(...); Airtable.base(...)`)
 - [x] Records + metadata + webhooks
 - [x] Built-in retries with exponential backoff
+- [x] Support Node, Web, Edge, and even more environments
+- [x] Built-in pluggable **record caching** (with a built-in in-memory store)
+- [ ] Built-in logging interface to trigger logging when needed
 
 It’s meant to be boring, predictable glue around Airtable’s HTTP API — no magic.
 
@@ -53,7 +56,11 @@ interface Task {
 
 Airtable.configure({
   apiKey: process.env.AIRTABLE_API_KEY!,
-  // endpointUrl: 'https://api.airtable.com', // optional override
+  // endpointUrl?: 'https://api.airtable.com'
+  // fetch?: typeof fetch
+  // maxRetries?: number
+  // retryInitialDelayMs?: number
+  // retryOnStatuses?: number[]
 })
 
 const base = Airtable.base<Task>(process.env.AIRTABLE_BASE_ID!)
@@ -77,7 +84,7 @@ await base('Tasks').destroyMany(['rec2', 'rec3'])
 
 ### Shape of the façade
 
-```typescript
+```ts
 Airtable.configure({
   apiKey: string,
   endpointUrl?: string,
@@ -85,9 +92,13 @@ Airtable.configure({
   maxRetries?: number,
   retryInitialDelayMs?: number,
   retryOnStatuses?: number[],
+  // recordsCache?: AirtableRecordsCacheOptions (optional global records cache)
 })
 
-const base = Airtable.base<MyFields>(baseId)
+const base = Airtable.base<MyFields>(baseId /*, {
+  // Optional per-base overrides (currently: recordsCache)
+  // recordsCache?: AirtableRecordsCacheOptions
+}*/)
 
 // base is a function: base(tableName) -> table helper
 base.id     // baseId
@@ -104,6 +115,8 @@ table.destroy(recordId)
 table.destroyMany(recordIds)
 ```
 
+If you only need to do **record listing + create / update / delete**, the façade is all you need.
+
 ## Low-level client (`AirtableClient`)
 
 If you prefer a direct client (and full surface area: records + metadata + webhooks):
@@ -119,6 +132,11 @@ interface Task {
 const client = new AirtableClient<Task>({
   apiKey: process.env.AIRTABLE_API_KEY!,
   baseId: process.env.AIRTABLE_BASE_ID!,
+  // endpointUrl?: string
+  // fetch?: typeof fetch
+  // maxRetries?: number
+  // retryInitialDelayMs?: number
+  // retryOnStatuses?: number[]
 })
 
 const page = await client.records.listRecords('Tasks', {
@@ -133,6 +151,44 @@ const webhooks = await client.webhooks.listWebhooks()
 - `client.records` – list / get / create / update / delete / upsert
 - `client.metadata` – bases, base schema, table & view metadata
 - `client.webhooks` – create / list / refresh / delete + payload listing
+
+## Optional record caching (overview)
+
+Record caching for reads (`listRecords`, `listAllRecords`, `iterateRecords`, `getRecord`) is **opt-in** and configured via `recordsCache`.
+
+A simple in-process LRU+TTL store is built in: `InMemoryCacheStore`.
+
+```ts
+import Airtable, { InMemoryCacheStore } from 'ts-airtable'
+
+Airtable.configure({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  recordsCache: {
+    store: new InMemoryCacheStore(),
+    defaultTtlMs: 30_000,
+  },
+})
+
+const base = Airtable.base<Task>(process.env.AIRTABLE_BASE_ID!)
+const records = await base('Tasks').select({ view: 'Grid view' }).all()
+```
+
+You can also configure caching directly on the low-level client:
+
+```ts
+import { AirtableClient, InMemoryCacheStore } from 'ts-airtable'
+
+const client = new AirtableClient<Task>({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  baseId: process.env.AIRTABLE_BASE_ID!,
+  recordsCache: {
+    store: new InMemoryCacheStore(),
+    defaultTtlMs: 60_000,
+  },
+})
+```
+
+For details on key strategy, invalidation, custom stores (Redis / KV, etc.) and when you should use caching, see the [Caching documentation](https://airtable.zla.app/guide/features/caching).
 
 ## Error handling
 

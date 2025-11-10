@@ -9,6 +9,7 @@ Airtable TS is a tiny, fetch-based client for the Airtable Web API, with:
 
 - Airtable.js-style façade: `Airtable.configure(...)` + `Airtable.base(...)`
 - A low-level `AirtableClient` with records, metadata and webhooks
+- Optional, pluggable in-process **record caching**
 - First-class TypeScript & built-in retry support
 
 ## Installation
@@ -59,6 +60,7 @@ const base = Airtable.base<Task>(process.env.AIRTABLE_BASE_ID!)
 
 // List all records in a view
 const records = await base('Tasks').select({ view: 'Grid view' }).all()
+
 console.log(records[0].fields.Name)
 
 // First page only
@@ -68,21 +70,17 @@ const firstPage = await base('Tasks').select({ pageSize: 50 }).firstPage()
 const rec = await base('Tasks').find('recXXXXXXXXXXXXXX')
 
 // Create
-await base('Tasks').create([
-  { fields: { Name: 'Write docs', Status: 'Todo' } },
-])
+await base('Tasks').create([{ fields: { Name: 'Write docs', Status: 'Todo' } }])
 
 // Update
-await base('Tasks').update([
-  { id: 'rec1', fields: { Status: 'Done' } },
-])
+await base('Tasks').update([{ id: 'rec1', fields: { Status: 'Done' } }])
 
 // Delete
 await base('Tasks').destroy('rec1')
 await base('Tasks').destroyMany(['rec2', 'rec3'])
 ```
 
-### Façade API shape
+### Façade API shape (quick overview)
 
 ```ts
 Airtable.configure({
@@ -116,7 +114,7 @@ If you only need to do **record listing + create / update / delete**, the façad
 
 ## Option B: Low-level `AirtableClient`
 
-When you need to work with **metadata** or **webhooks**, the low-level client is more direct.
+When you need to work with **metadata**, **webhooks**, or want more direct control over configuration, the low-level client is more direct.
 
 ```ts
 import { AirtableClient } from 'ts-airtable'
@@ -148,7 +146,7 @@ for (const record of page.records) {
 
 // Metadata API
 const schema = await client.metadata.getBaseSchema()
-console.log(schema.tables.map(t => t.name))
+console.log(schema.tables.map((t) => t.name))
 
 // Webhooks API
 const webhooks = await client.webhooks.listWebhooks()
@@ -161,6 +159,19 @@ console.log(webhooks.webhooks.length)
 - `client.metadata` – bases, base schema, table & view metadata
 - `client.webhooks` – create / list / refresh / delete, plus payload listing
 
+## Optional caching (very short version)
+
+Record caching for reads (`listRecords`, `listAllRecords`, `iterateRecords`, `getRecord`) is **opt-in**.
+
+- Configure via `recordsCache`:
+  - `Airtable.configure({ recordsCache })`
+  - `Airtable.base(baseId, { recordsCache })`
+  - `new AirtableClient({ ..., recordsCache })`
+
+- A built-in `InMemoryCacheStore` is provided for simple in-process caching.
+
+For a full guide (key strategy, invalidation, custom stores, best practices), see the dedicated [Caching](./caching.md) page.
+
 ## Error handling
 
 All non-2xx responses are thrown as `AirtableError`:
@@ -170,12 +181,10 @@ import { AirtableError, isAirtableError } from 'ts-airtable'
 
 try {
   await client.records.listRecords('Tasks')
-}
-catch (err) {
+} catch (err) {
   if (isAirtableError(err)) {
     console.error('Airtable error', err.status, err.type, err.message)
-  }
-  else {
+  } else {
     console.error('Unexpected error', err)
   }
 }
@@ -196,6 +205,7 @@ class AirtableError extends Error {
 - 🔎 Learn more about the [**records API**](./records.md): listing, pagination & batching
 - 🧱 Explore [**metadata**](./metadata.md): bases, tables, fields and views
 - 🔔 Set up [**webhooks**](./webhooks.md) for reactive workflows
+- 🧊 Dive into [**caching**](./caching.md): how record caching works and when to use it
 - 📚 Browse the [**full API reference**](../api/index.md) for all types and helpers
 
 ## LICENSE

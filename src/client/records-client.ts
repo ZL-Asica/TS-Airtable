@@ -12,6 +12,8 @@ import type {
   UpdateRecordsOptions,
   UpdateRecordsResult,
 } from '@/types'
+import type { AirtableCacheStore, AirtableRecordsCacheOnErrorContext, AirtableRecordsCacheOptions } from '@/types/cache-store'
+import { listKey, recordKey, recordPrefix, tablePrefix } from '@/utils'
 import { MAX_RECORDS_PER_BATCH } from './core'
 
 /**
@@ -20,7 +22,31 @@ import { MAX_RECORDS_PER_BATCH } from './core'
  * This class is composed into `AirtableClient` as `client.records`.
  */
 export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
-  constructor(private readonly core: AirtableCoreClient) {}
+  /**
+   * Per-instance cache options controlling:
+   *
+   * - Which methods are cached (list/get, etc.)
+   * - Default TTL for entries
+   * - Error handling strategy (`onError`, `failOnCacheError`)
+   * - Underlying store via {@link AirtableRecordsCacheOptions.store}
+   */
+  private readonly cacheOpts?: AirtableRecordsCacheOptions
+
+  /**
+   * Underlying cache store instance, derived from {@link cacheOpts}.
+   *
+   * If no store is provided, all cache helpers become no-ops and the client
+   * behaves as if caching were disabled.
+   */
+  private readonly cache?: AirtableCacheStore
+
+  constructor(
+    private readonly core: AirtableCoreClient,
+    cacheOpts?: AirtableRecordsCacheOptions,
+  ) {
+    this.cacheOpts = cacheOpts
+    this.cache = cacheOpts?.store
+  }
 
   /**
    * List records from a table (single page).
@@ -54,12 +80,33 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
     tableIdOrName: string,
     params?: ListRecordsParams,
   ): Promise<ListRecordsResult<TFields>> {
+    const { cacheOpts } = this
+    const shouldCache = !!this.cache && (cacheOpts?.methods?.listRecords ?? true)
+
+    const key = shouldCache
+      ? listKey(this.core.baseId, tableIdOrName, params)
+      : undefined
+
+    if (key) {
+      const cached = await this.cacheGet<ListRecordsResult<TFields>>(key)
+      if (cached) {
+        return cached
+      }
+    }
+
     const url = this.core.buildTableUrl(
       tableIdOrName,
       undefined,
       this.core.buildListQuery(params),
     )
-    return this.core.requestJson<ListRecordsResult<TFields>>(url, { method: 'GET' })
+
+    const result = await this.core.requestJson<ListRecordsResult<TFields>>(url, { method: 'GET' })
+
+    if (key) {
+      await this.cacheSet(key, result)
+    }
+
+    return result
   }
 
   /**
@@ -194,12 +241,35 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
     recordId: string,
     params?: GetRecordParams,
   ): Promise<AirtableRecord<TFields>> {
+    const { cacheOpts } = this
+    const shouldCache = !!this.cache && (cacheOpts?.methods?.getRecord ?? true)
+
+    const key = shouldCache
+      ? recordKey(this.core.baseId, tableIdOrName, recordId, params)
+      : undefined
+
+    if (key) {
+      const cached = await this.cacheGet<AirtableRecord<TFields>>(key)
+      if (cached) {
+        return cached
+      }
+    }
+
     const url = this.core.buildTableUrl(
       tableIdOrName,
       recordId,
       this.core.buildGetQuery(params),
     )
-    return this.core.requestJson<AirtableRecord<TFields>>(url, { method: 'GET' })
+
+    const result = await this.core.requestJson<AirtableRecord<TFields>>(url, {
+      method: 'GET',
+    })
+
+    if (key) {
+      await this.cacheSet(key, result)
+    }
+
+    return result
   }
 
   /**
@@ -255,6 +325,8 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
 
       created.push(...resp.records)
     }
+
+    await this.invalidateTable(tableIdOrName)
 
     return { records: created }
   }
@@ -337,6 +409,13 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
       result.updatedRecords = updatedViaUpsert
     }
 
+    const recordIds = records.map(r => r.id)
+
+    await Promise.all([
+      this.invalidateTable(tableIdOrName),
+      this.invalidateRecords(tableIdOrName, recordIds),
+    ])
+
     return result
   }
 
@@ -373,10 +452,17 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
       body.typecast = options.typecast
     }
 
-    return this.core.requestJson<AirtableRecord<TFields>>(url, {
+    const updatedRecord = await this.core.requestJson<AirtableRecord<TFields>>(url, {
       method: 'PATCH',
       body: JSON.stringify(body),
     })
+
+    await Promise.all([
+      this.invalidateTable(tableIdOrName),
+      this.invalidateRecord(tableIdOrName, recordId),
+    ])
+
+    return updatedRecord
   }
 
   /**
@@ -394,9 +480,16 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
     recordId: string,
   ): Promise<{ id: string, deleted: boolean }> {
     const url = this.core.buildTableUrl(tableIdOrName, recordId)
-    return this.core.requestJson<{ id: string, deleted: boolean }>(url, {
+    const deletedRecord = await this.core.requestJson<{ id: string, deleted: boolean }>(url, {
       method: 'DELETE',
     })
+
+    await Promise.all([
+      this.invalidateTable(tableIdOrName),
+      this.invalidateRecord(tableIdOrName, recordId),
+    ])
+
+    return deletedRecord
   }
 
   /**
@@ -444,6 +537,222 @@ export class AirtableRecordsClient<TDefaultFields = Record<string, unknown>> {
       deleted.push(...resp.records)
     }
 
+    await Promise.all([
+      this.invalidateTable(tableIdOrName),
+      this.invalidateRecords(tableIdOrName, recordIds),
+    ])
+
     return { records: deleted }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal cache invalidation helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Invalidates all cached **list-style** results for a single table.
+   *
+   * This is typically called after any mutation that may change the rows in a
+   * table (e.g. create, update, delete, bulk operations). It uses the
+   * {@link tablePrefix} helper together with {@link cacheDeleteByPrefix}
+   * to remove all entries whose keys represent:
+   *
+   * - `listRecords(...)`
+   * - `listAllRecords(...)`
+   * - `iterateRecords(...)` (first page)
+   *
+   * If there is no cache store or it does not implement `deleteByPrefix`,
+   * this method is a no-op (unless `failOnCacheError` is set and the store
+   * itself throws when called).
+   *
+   * @param tableIdOrName - Table identifier or name, as used by the Airtable core.
+   */
+  private async invalidateTable(
+    tableIdOrName: string,
+  ): Promise<void> {
+    await this.cacheDeleteByPrefix(
+      tablePrefix(this.core.baseId, tableIdOrName),
+    )
+  }
+
+  /**
+   * Invalidates all cached views of a single record.
+   *
+   * This removes every cache entry associated with the given record in the
+   * specified table, regardless of the exact parameters used for `getRecord`
+   * (e.g. different field selections, cell formats, etc.), as long as those
+   * keys are generated using {@link recordPrefix}.
+   *
+   * Internally this delegates to {@link cacheDeleteByPrefix}.
+   *
+   * @param tableIdOrName - Table identifier or name that the record belongs to.
+   * @param recordId - Airtable record ID to invalidate.
+   */
+  private async invalidateRecord(
+    tableIdOrName: string,
+    recordId: string,
+  ): Promise<void> {
+    await this.cacheDeleteByPrefix(
+      recordPrefix(this.core.baseId, tableIdOrName, recordId),
+    )
+  }
+
+  /**
+   * Invalidates all cached views for **multiple** records in a single table.
+   *
+   * This is a bulk helper used when a mutation affects more than one record,
+   * for example:
+   *
+   * - Bulk update operations
+   * - Batch delete operations
+   * - Any API that can touch multiple record IDs at once
+   *
+   * Internally this simply calls {@link invalidateRecord} for each ID, which
+   * in turn uses {@link cacheDeleteByPrefix}.
+   *
+   * If the records array is empty, this method is a no-op.
+   *
+   * @param tableIdOrName - Table identifier or name that the records belong to.
+   * @param recordIds - Array of Airtable record IDs whose cached entries should
+   *   be invalidated.
+   */
+  private async invalidateRecords(
+    tableIdOrName: string,
+    recordIds: string[],
+  ): Promise<void> {
+    if (!recordIds.length) {
+      return
+    }
+
+    await Promise.all(
+      recordIds.map(recordId =>
+        this.invalidateRecord(tableIdOrName, recordId),
+      ),
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internal cache helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Centralized handler for cache-layer errors.
+   *
+   * Behavior:
+   * - If `cacheOpts.onError` is provided, it is invoked with the error and
+   *   a small context object describing the cache operation.
+   * - If `cacheOpts.failOnCacheError` is `true`, the error is rethrown so that
+   *   the calling records API surfaces the failure.
+   * - Otherwise, the error is swallowed and the records API falls back to
+   *   "cache disabled" behavior.
+   *
+   * @param error - Error thrown by the cache store.
+   * @param ctx - Context about the operation being performed.
+   *   - `op`: `"get" | "set" | "delete"`
+   *   - `key?`: cache key used for `get`/`set`
+   *   - `prefix?`: prefix used for `delete`
+   */
+  private handleCacheError(
+    error: unknown,
+    ctx: AirtableRecordsCacheOnErrorContext,
+  ): void {
+    this.cacheOpts?.onError?.(error, ctx)
+
+    if (this.cacheOpts?.failOnCacheError) {
+      // Let the error bubble up to the main records API.
+      throw error
+    }
+  }
+
+  /**
+   * Internal helper to read from the cache store.
+   *
+   * Semantics:
+   * - If no cache store is configured, always returns `undefined`.
+   * - On success, returns the value from `store.get(key)` (which may itself
+   *   be `undefined`).
+   * - If the store throws, {@link handleCacheError} is invoked. Unless
+   *   `failOnCacheError` is set, the error is swallowed and this method
+   *   behaves like a cache miss.
+   *
+   * @typeParam T - Expected type of the cached value.
+   *
+   * @param key - Cache key to read.
+   *
+   * @returns The cached value, or `undefined` on miss / error.
+   */
+  private async cacheGet<T>(key: string): Promise<T | undefined> {
+    if (!this.cache) {
+      return undefined
+    }
+
+    try {
+      return await this.cache.get<T>(key)
+    }
+    catch (err) {
+      this.handleCacheError(err, { op: 'get', key })
+      return undefined
+    }
+  }
+
+  /**
+   * Internal helper to write to the cache store.
+   *
+   * Semantics:
+   * - If no cache store is configured, this is a no-op.
+   * - On success, the value is written with `defaultTtlMs` (if configured).
+   * - If the store throws, {@link handleCacheError} is invoked. Unless
+   *   `failOnCacheError` is set, the error is swallowed and the records
+   *   API continues as if caching were disabled.
+   *
+   * @typeParam T - Type of the value being cached.
+   *
+   * @param key - Cache key to write.
+   * @param value - Value to cache.
+   */
+  private async cacheSet<T>(key: string, value: T): Promise<void> {
+    if (!this.cache) {
+      return
+    }
+
+    try {
+      await this.cache.set(key, value, this.cacheOpts?.defaultTtlMs)
+    }
+    catch (err) {
+      this.handleCacheError(err, { op: 'set', key })
+      // Error already handled according to `failOnCacheError`
+    }
+  }
+
+  /**
+   * Internal helper to delete entries by prefix from the cache store.
+   *
+   * Semantics:
+   * - If no cache store is configured or the store does not implement
+   *   `deleteByPrefix`, this is a no-op.
+   * - On success, all matching keys are invalidated.
+   * - If the store throws, {@link handleCacheError} is invoked. Unless
+   *   `failOnCacheError` is set, the error is swallowed and the records
+   *   API proceeds without treating cache invalidation failures as fatal.
+   *
+   * This helper underlies:
+   * - {@link invalidateTable}
+   * - {@link invalidateRecord}
+   * - {@link invalidateRecords}
+   *
+   * @param prefix - String prefix to match against cache keys.
+   */
+  private async cacheDeleteByPrefix(prefix: string): Promise<void> {
+    if (!this.cache?.deleteByPrefix) {
+      return
+    }
+
+    try {
+      await this.cache.deleteByPrefix(prefix)
+    }
+    catch (err) {
+      this.handleCacheError(err, { op: 'delete', prefix })
+      // Error already handled according to `failOnCacheError`
+    }
   }
 }

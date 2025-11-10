@@ -1,9 +1,18 @@
 import type { DefaultTheme, UserConfig } from 'vitepress'
-
 import { defineConfig } from 'vitepress'
-import { withSidebar } from 'vitepress-sidebar'
-
+import { generateSidebar } from 'vitepress-sidebar'
 import pkg from '../../package.json' with { type: 'json' }
+
+const apiSidebar: DefaultTheme.Sidebar = generateSidebar([
+  {
+    documentRootPath: 'docs', // .vitepress 所在目录
+    scanStartPath: 'api', // 扫描 docs/api 下的文件
+    resolvePath: '/api/', // 生成的链接前缀 => /api/...
+    useTitleFromFileHeading: true,
+    useFolderLinkFromIndexFile: true,
+    rootGroupText: 'API Reference',
+  },
+])
 
 // https://vitepress.dev/reference/site-config
 const vitePressConfig: UserConfig<DefaultTheme.Config> = {
@@ -23,17 +32,22 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
     ['meta', { name: 'robots', content: 'noindex,nofollow,noarchive' }],
   ],
   themeConfig: {
-    // https://vitepress.dev/reference/default-theme-config
     logo: '/logo.png',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
+      { text: 'Features', link: '/guide/features/' },
       { text: 'API Reference', link: '/api/' },
-      { text: `v${pkg.version}`, items: [
-        { text: 'Changelog', link: 'https://github.com/ZL-Asica/ts-airtable/blob/main/CHANGELOG.md' },
-      ] },
+      {
+        text: `v${pkg.version}`,
+        items: [
+          {
+            text: 'Changelog',
+            link: 'https://github.com/ZL-Asica/ts-airtable/blob/main/CHANGELOG.md',
+          },
+        ],
+      },
     ],
     socialLinks: [
-      // { icon: 'jsr', link: 'https://jsr.io/@zl-asica/ts-airtable' },
       { icon: 'npm', link: 'https://www.npmjs.com/package/ts-airtable' },
       { icon: 'github', link: 'https://github.com/ZL-Asica/ts-airtable' },
     ],
@@ -42,7 +56,29 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
     },
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright &copy; 2025-Present <a href="https://zla.pub" target="_blank">ZL Asica</a>',
+      copyright:
+        'Copyright &copy; 2025-Present <a href="https://zla.pub" target="_blank">ZL Asica</a>',
+    },
+    sidebar: {
+      '/guide/': [
+        {
+          text: 'Guide',
+          items: [
+            { text: 'Getting Started', link: '/guide/getting-started' },
+            { text: 'Records', link: '/guide/records' },
+            { text: 'Metadata', link: '/guide/metadata' },
+            { text: 'Webhooks', link: '/guide/webhooks' },
+          ],
+        },
+        {
+          text: 'Features',
+          items: [
+            { text: 'Features overview', link: '/guide/features/' },
+            { text: 'Caching', link: '/guide/features/caching' },
+          ],
+        },
+      ],
+      ...apiSidebar,
     },
   },
   ignoreDeadLinks: true,
@@ -51,23 +87,4 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
   },
 }
 
-export default defineConfig(
-  withSidebar(vitePressConfig, [
-    {
-      documentRootPath: 'docs',
-      scanStartPath: 'guide',
-      basePath: '/guide/',
-      resolvePath: '/guide/',
-      useTitleFromFileHeading: true,
-      rootGroupText: 'Guide',
-    },
-    {
-      documentRootPath: 'docs',
-      scanStartPath: 'api',
-      resolvePath: '/api/',
-      useTitleFromFileHeading: true,
-      rootGroupText: 'API Reference',
-      useFolderLinkFromIndexFile: true,
-    },
-  ]),
-)
+export default defineConfig(vitePressConfig)

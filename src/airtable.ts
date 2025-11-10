@@ -8,30 +8,11 @@ import type {
   ListRecordsParams,
 } from '@/types'
 import { AirtableClient } from '@/client'
+import { globalConfig } from './global-config'
 
 // -----------------------------------------------------------------------------
 // Implementation helpers
 // -----------------------------------------------------------------------------
-
-/**
- * Internal storage for global configuration used by the Airtable singleton.
- *
- * This is intentionally not exported; users should configure the client via
- * `AirtableGlobal.configure` instead of mutating globals directly.
- */
-interface InternalGlobalConfig {
-  apiKey?: string
-  endpointUrl?: string
-  fetch?: typeof fetch
-  maxRetries?: number
-  retryInitialDelayMs?: number
-  retryOnStatuses?: number[]
-}
-
-/**
- * Process-wide configuration used by the top-level `Airtable` singleton.
- */
-const globalConfig: InternalGlobalConfig = {}
 
 /**
  * Create a query object for `base(table).select(...)`.
@@ -223,6 +204,8 @@ class AirtableGlobal {
    *   - `maxRetries` (optional)
    *   - `retryInitialDelayMs` (optional)
    *   - `retryOnStatuses` (optional)
+   *    - `recordsCache` (optional) - shared records cache configuration,
+   *     see {@link AirtableRecordsCacheOptions}
    *
    * @example
    * ```ts
@@ -234,40 +217,63 @@ class AirtableGlobal {
    * ```
    */
   configure(config: AirtableGlobalConfig): void {
-    if (config.apiKey)
+    if (config.apiKey) {
       globalConfig.apiKey = config.apiKey
-    if (config.endpointUrl)
+    }
+    if (config.endpointUrl) {
       globalConfig.endpointUrl = config.endpointUrl
-    if (config.fetch)
+    }
+    if (config.fetch) {
       globalConfig.fetch = config.fetch
-    if (config.maxRetries != null)
+    }
+    if (config.maxRetries != null) {
       globalConfig.maxRetries = config.maxRetries
+    }
     if (config.retryInitialDelayMs != null) {
       globalConfig.retryInitialDelayMs = config.retryInitialDelayMs
     }
     if (config.retryOnStatuses) {
       globalConfig.retryOnStatuses = config.retryOnStatuses
     }
+    if (config.recordsCache) {
+      globalConfig.recordsCache = config.recordsCache
+    }
   }
 
   /**
    * Create a base handle bound to the given base id.
    *
-   * This uses configuration previously provided via `configure`.
+   * This uses configuration previously provided via {@link AirtableGlobal.configure}.
    * At minimum, an API key must have been configured.
+   *
+   * You can optionally provide per-base overrides for some
+   * {@link AirtableClientOptions} fields (currently `recordsCache`). When both
+   * global config and per-base overrides are present, **per-base overrides win**.
+   *
+   * In particular for caching:
+   *
+   * - `Airtable.configure({ recordsCache: ... })` sets a **default** records
+   *   cache that will be used for all bases created via `Airtable.base(...)`.
+   * - `Airtable.base(baseId, { recordsCache: ... })` lets you override that
+   *   cache configuration for a specific base (or enable caching only for
+   *   that base).
    *
    * @typeParam TDefaultFields - Default fields shape for tables in this base.
    *
    * @param baseId - Airtable base ID (e.g. `"appXXXXXXXXXXXXXX"`).
+   * @param overrides - Optional per-base overrides for {@link AirtableClientOptions}.
+   *   Currently only `recordsCache` is supported:
+   *   - `recordsCache` – per-base caching settings for `client.records`.
    *
-   * @returns A `AirtableBase` function that can be called with a
+   * @returns An {@link AirtableBase} function that can be called with a
    *   table ID or name: `base('Tasks')`.
    *
    * @throws Error - If `baseId` is empty or if `apiKey` has not been
-   *   configured yet.
+   *   configured yet via {@link AirtableGlobal.configure}.
    *
    * @example
    * ```ts
+   * // Global defaults (no caching)
    * Airtable.configure({
    *   apiKey: process.env.AIRTABLE_API_KEY!,
    * })
@@ -275,9 +281,32 @@ class AirtableGlobal {
    * const base = Airtable.base<MyFields>(process.env.AIRTABLE_BASE_ID!)
    * const records = await base('Tasks').select({ view: 'Grid view' }).all()
    * ```
+   *
+   * @example
+   * ```ts
+   * // Global caching config for all bases
+   * Airtable.configure({
+   *   apiKey: process.env.AIRTABLE_API_KEY!,
+   *   recordsCache: {
+   *     store: sharedStore,
+   *     defaultTtlMs: 30_000,
+   *   },
+   * })
+   *
+   * // Override caching for a single base: different TTL / store
+   * const base = Airtable.base<MyFields>(process.env.AIRTABLE_BASE_ID!, {
+   *   recordsCache: {
+   *     store: perBaseStore,
+   *     defaultTtlMs: 5_000,
+   *   },
+   * })
+   *
+   * const tasks = await base('Tasks').select({ view: 'Grid view' }).all()
+   * ```
    */
   base<TDefaultFields = Record<string, unknown>>(
     baseId: string,
+    overrides?: Pick<AirtableClientOptions, 'recordsCache'>,
   ): AirtableBase<TDefaultFields> {
     if (!baseId) {
       throw new Error('Airtable.base: baseId is required')
@@ -296,6 +325,7 @@ class AirtableGlobal {
       maxRetries: globalConfig.maxRetries,
       retryInitialDelayMs: globalConfig.retryInitialDelayMs,
       retryOnStatuses: globalConfig.retryOnStatuses,
+      recordsCache: overrides?.recordsCache ?? globalConfig.recordsCache,
     }
 
     return createBase<TDefaultFields>(options)
