@@ -3,12 +3,12 @@
 layout: home
 
 hero:
-  name: "Airtable TS"
-  text: "A tiny, modern Airtable Web API client"
-  tagline: "Fetch-based, TypeScript-first, with Airtable.js-style façade plus metadata & webhooks."
+  name: 'Airtable TS'
+  text: 'A tiny, modern Airtable Web API client'
+  tagline: 'Fetch-based, TypeScript-first, with Airtable.js-style façade plus metadata & webhooks.'
   image:
     src: /favicon.svg
-    alt: "Airtable TS Logo"
+    alt: 'Airtable TS Logo'
   actions:
     - theme: brand
       text: 🛠️ Get Started
@@ -17,8 +17,8 @@ hero:
       text: 📚 API Reference
       link: /api/
     - theme: alt
-      text: ⭐ GitHub
-      link: https://github.com/ZL-Asica/ts-airtable
+      text: ⭐ NPM
+      link: https://www.npmjs.com/package/ts-airtable
 
 features:
   - icon: ⚡

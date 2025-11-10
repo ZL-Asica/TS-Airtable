@@ -34,7 +34,7 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
     ],
     socialLinks: [
       // { icon: 'jsr', link: 'https://jsr.io/@zl-asica/ts-airtable' },
-      { icon: 'npm', link: 'https://www.npmjs.com/package/@zl-asica/ts-airtable' },
+      { icon: 'npm', link: 'https://www.npmjs.com/package/ts-airtable' },
       { icon: 'github', link: 'https://github.com/ZL-Asica/ts-airtable' },
     ],
     search: {
