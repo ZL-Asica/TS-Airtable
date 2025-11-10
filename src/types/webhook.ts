@@ -4,7 +4,6 @@
  * This is a lightly-typed mirror of Airtable's Webhooks filters.
  * For the full model, see:
  * https://airtable.com/developers/web/api/model/webhooks-specification
- * @link https://airtable.com/developers/web/api/model/webhooks-specification
  */
 export interface AirtableWebhookFilters {
   /**
