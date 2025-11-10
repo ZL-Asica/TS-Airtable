@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-11-10
+
+### Added
+
+- Caching feature to records client. Corresponding documentations and test cases have been updated.
+- Add new `docs:publish:ci` script in `package.json` for Vitepress auto deploy to Cloudflare Pages.
+
+### Changes
+
+- Adjust Vitepress sidebar logics. Only `api` route is auto generating now.
+- Added `features` as a sub folder (route) to `guide` for advance features.
+
+### Chore
+
+- Update settings in `package.json` to improve robustness. Add type file in `.` import field. And move `husky` from `postinstall` to `prepare` to avoid affecting user's personal environment.
+- Description updated.
+- Rename `CODE_OF_CONDUCT.MD` to `CODE_OF_CONDUCT.md` by delete and added via 2 different commit to avoid case insensitive issue in git.
+
 ## [0.1.3] - 2025-11-09
 
 ### Fixed

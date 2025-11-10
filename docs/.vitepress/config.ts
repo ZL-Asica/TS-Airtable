@@ -75,6 +75,7 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
           items: [
             { text: 'Features overview', link: '/guide/features/' },
             { text: 'Caching', link: '/guide/features/caching' },
+            { text: 'Custom cache store example (Cloudflare KV)', link: '/guide/features/custom-cloudflare-kv-cache' },
           ],
         },
       ],
