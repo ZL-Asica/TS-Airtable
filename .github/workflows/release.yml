@@ -1,0 +1,65 @@
+name: 🚀 Release to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Required for github release
+      packages: write # Required for NPM publish
+      id-token: write # Required for JSR publish
+
+    steps:
+      # Step 1: Checkout code
+      - name: 📂 Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js for npm
+      - name: 📦 Set up Node.js for npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          registry-url: 'https://registry.npmjs.org' # Default to npm registry
+
+      # Step 3: Set up Node.js and pnpm
+      - name: 🛠️ Set up Node.js and pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: |
+            - recursive: true
+              args: [--frozen-lockfile]
+
+      # Step 4: Lint and test
+      - name: 🎨 Lint and test
+        run: |
+          pnpm run lint:fix
+          pnpm run test:ci
+
+      # Step 5: Build package
+      - name: 🏗️ Build package
+        run: pnpm build
+
+      - name: 🔍 Check tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          echo "Tag version:      $TAG_VERSION"
+          echo "package.json:     $PKG_VERSION"
+
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "❌ Tag (v$TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: 🚀 Publish to npm
+        run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

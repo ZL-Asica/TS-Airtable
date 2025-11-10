@@ -9,7 +9,9 @@
 [![Vitest][vitest-badge]][vitest-link]
 [![Eslint][eslint-badge]][eslint-link]
 
-A tiny, fetch-based JavaScript/TypeScript Airtable Web API client:
+> A tiny, fetch-based JavaScript/TypeScript Airtable Web API client.
+
+📚 **[Documentation](https://airtable.zla.app)**
 
 - [x] First-class **TypeScript**
 - [x] Modern, promise-only API
@@ -141,12 +143,10 @@ import { AirtableError, isAirtableError } from 'ts-airtable'
 
 try {
   await client.records.listRecords('Tasks')
-}
-catch (err) {
+} catch (err) {
   if (isAirtableError(err)) {
     console.error('Airtable error', err.status, err.type, err.message)
-  }
-  else {
+  } else {
     console.error('Unexpected error', err)
   }
 }
@@ -186,8 +186,8 @@ This project is licensed under the [MIT License](./LICENSE).
 [license-link]: https://github.com/ZL-Asica/TS-Airtable/blob/main/LICENSE
 [node-badge]: https://img.shields.io/badge/node%3E=18-339933?logo=node.js&logoColor=white
 [node-link]: https://nodejs.org/
-[npm-version-badge]: https://img.shields.io/npm/v/tS-Airtable
-[npm-versions-link]: https://www.npmjs.com/package/tS-Airtable
+[npm-version-badge]: https://img.shields.io/npm/v/ts-airtable
+[npm-versions-link]: https://www.npmjs.com/package/ts-airtable
 [pnpm-badge]: https://img.shields.io/github/package-json/packageManager/ZL-Asica/TS-Airtable?label=&logo=pnpm&logoColor=fff&color=F69220
 [pnpm-link]: https://pnpm.io/
 [vitepress-badge]: https://img.shields.io/badge/VitePress-5468ff?logo=vite&logoColor=ffffff

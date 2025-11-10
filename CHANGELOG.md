@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] – Initial release
+## [0.1.1] - 2025-11-09
+
+### Added
+
+- `release.yml` GitHub Actions workflow to publish to npm automatically on tag push.
+- `pre-commit` and `pre-push` hooks using Husky.
+
+### Fixed
+
+- Add `.node-version` to enforce Node.js version `>= 24.*`
+  (to avoid Cloudflare using v22 to run TypeScript directly).
+- Add `lcov` to Vitest reporters for Codecov.
+- Fix links in `README.md` and added documentation link.
+- Correct published output file declarations in `package.json`.
+
+## [0.1.0] - 2025-11-09
+
+Initial release
 
 ### Added
 

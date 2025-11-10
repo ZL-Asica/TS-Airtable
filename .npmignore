@@ -1,0 +1,7 @@
+src/
+docs/
+.github/
+.coverage/
+.vscode/
+tsup.config.js
+vitest.config.ts

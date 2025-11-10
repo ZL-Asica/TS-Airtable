@@ -8,7 +8,7 @@ export default defineConfig({
     include: ['src/__tests__/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'lcov', 'html'],
     },
     alias: {
       '@': path.resolve('./src'), // Alias @ to src
