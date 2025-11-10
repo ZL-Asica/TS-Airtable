@@ -1,0 +1,336 @@
+/**
+ * Customize default theme styling by overriding CSS variables:
+ * https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/vars.css
+ */
+
+/**
+ * Colors
+ *
+ * Each colors have exact same color scale system with 3 levels of solid
+ * colors with different brightness, and 1 soft color.
+ *
+ * - `XXX-1`: The most solid color used mainly for colored text. It must
+ *   satisfy the contrast ratio against when used on top of `XXX-soft`.
+ *
+ * - `XXX-2`: The color used mainly for hover state of the button.
+ *
+ * - `XXX-3`: The color for solid background, such as bg color of the button.
+ *   It must satisfy the contrast ratio with pure white (#ffffff) text on
+ *   top of it.
+ *
+ * - `XXX-soft`: The color used for subtle background such as custom container
+ *   or badges. It must satisfy the contrast ratio when putting `XXX-1` colors
+ *   on top of it.
+ *
+ *   The soft color must be semi transparent alpha channel. This is crucial
+ *   because it allows adding multiple "soft" colors on top of each other
+ *   to create an accent, such as when having inline code block inside
+ *   custom containers.
+ *
+ * - `default`: The color used purely for subtle indication without any
+ *   special meanings attached to it such as bg color for menu hover state.
+ *
+ * - `brand`: Used for primary brand colors, such as link text, button with
+ *   brand theme, etc.
+ *
+ * - `tip`: Used to indicate useful information. The default theme uses the
+ *   brand color for this by default.
+ *
+ * - `warning`: Used to indicate warning to the users. Used in custom
+ *   container, badges, etc.
+ *
+ * - `danger`: Used to show error, or dangerous message to the users. Used
+ *   in custom container, badges, etc.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * ZL Asica theme colors
+ * -------------------------------------------------------------------------- */
+
+:root {
+  /* Airtable JS: warm green + coral theme */
+
+  /* Main: Coral / Warm red */
+  --atj-coral: oklch(0.8 0.18 25);
+  --atj-coral-deep: oklch(0.7 0.2 25);
+  --atj-coral-soft: oklch(0.93 0.04 25);
+
+  /* Secondary: Green */
+
+  --atj-emerald: oklch(0.72 0.18 150);
+  --atj-emerald-deep: oklch(0.6 0.18 150);
+  --atj-emerald-soft: oklch(0.9 0.05 150);
+
+  /* Dark text */
+  --atj-ink: oklch(0.22 0.03 260);
+  --atj-ink-soft: oklch(0.3 0.02 260);
+
+  /* VitePress brand colors (site-wide primary colors) */
+  --vp-c-brand: var(--atj-coral);
+  --vp-c-brand-light: var(--atj-emerald);
+  --vp-c-brand-dark: var(--atj-coral-deep);
+  --vp-c-brand-soft: var(--atj-coral-soft);
+}
+
+:root {
+  --vp-c-default-1: var(--vp-c-gray-1);
+  --vp-c-default-2: var(--vp-c-gray-2);
+  --vp-c-default-3: var(--vp-c-gray-3);
+  --vp-c-default-soft: var(--vp-c-gray-soft);
+
+  /* Brand: Green as primary, with a soft tinted background */
+  --vp-c-brand-1: var(--atj-coral);
+  --vp-c-brand-2: var(--atj-coral);
+  --vp-c-brand-3: var(--atj-coral-deep);
+  --vp-c-brand-soft: var(--atj-coral-soft);
+
+  /* Tips share the same visual language as brand */
+  --vp-c-tip-1: var(--vp-c-brand-1);
+  --vp-c-tip-2: var(--vp-c-brand-2);
+  --vp-c-tip-3: var(--vp-c-brand-3);
+  --vp-c-tip-soft: var(--vp-c-brand-soft);
+
+  /* Keep warning / danger on the stock scales */
+  --vp-c-warning-1: var(--vp-c-yellow-1);
+  --vp-c-warning-2: var(--vp-c-yellow-2);
+  --vp-c-warning-3: var(--vp-c-yellow-3);
+  --vp-c-warning-soft: var(--vp-c-yellow-soft);
+
+  --vp-c-danger-1: var(--vp-c-red-1);
+  --vp-c-danger-2: var(--vp-c-red-2);
+  --vp-c-danger-3: var(--vp-c-red-3);
+  --vp-c-danger-soft: var(--vp-c-red-soft);
+
+  /* Used by VPNavBar + mobile nav */
+  --vp-nav-bg-color: color-mix(in oklab, var(--vp-c-bg) 82%, var(--vp-c-brand-soft) 18%);
+  --vp-nav-screen-bg-color: color-mix(in oklab, var(--vp-c-bg) 90%, var(--vp-c-brand-soft) 10%);
+}
+
+/**
+ * Component: Button
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: var(--vp-c-white);
+  --vp-button-brand-bg: var(--vp-c-brand-3);
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-hover-text: var(--vp-c-white);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-active-text: var(--vp-c-white);
+  --vp-button-brand-active-bg: var(--vp-c-brand-1);
+}
+
+/**
+ * Component: Home
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, var(--atj-coral) 0%, var(--atj-emerald) 100%);
+
+  /* Soft glow behind the home hero image, from emerald to coral */
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    var(--atj-coral-deep) 0%,
+    var(--atj-emerald-deep) 100%
+  );
+  --vp-home-hero-image-filter: blur(44px);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --vp-home-hero-image-filter: blur(56px);
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --vp-home-hero-image-filter: blur(68px);
+  }
+}
+
+/**
+ * Component: Custom Block
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --vp-custom-block-tip-border: transparent;
+  --vp-custom-block-tip-text: var(--vp-c-text-1);
+  --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
+  --vp-custom-block-tip-code-bg: var(--vp-c-brand-soft);
+}
+
+/**
+ * Component: Algolia
+ * -------------------------------------------------------------------------- */
+
+.DocSearch {
+  --docsearch-primary-color: var(--vp-c-brand-1) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sidebar                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.zla-layout .VPSidebar {
+  border-right: 1px solid color-mix(in oklab, var(--vp-c-border) 75%, transparent);
+  background: color-mix(in oklab, var(--vp-c-bg) 96%, var(--vp-c-bg-soft) 4%);
+}
+
+/* Group headings */
+
+.zla-layout .VPSidebar .group .title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 550;
+  color: var(--vp-c-text-3);
+  padding-inline: 0.85rem;
+  margin-top: 0.4rem;
+}
+
+/* Link rows */
+
+.zla-layout .VPSidebarItem .link {
+  border-radius: 999px;
+  padding-inline: 0.75rem;
+  margin-inline: 0.25rem;
+}
+
+.zla-layout .VPSidebarItem .link > a {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.2rem;
+  border-radius: inherit;
+  font-size: 0.86rem;
+  transition:
+    background 0.16s ease-out,
+    color 0.16s ease-out,
+    transform 0.12s ease-out;
+}
+
+/* Hover */
+
+.zla-layout .VPSidebarItem .link > a:hover {
+  background: color-mix(in oklab, var(--vp-c-brand-soft) 55%, transparent);
+  transform: translateX(1px);
+}
+
+/* Active item: animated rail */
+
+.zla-layout .VPSidebarItem.is-active .link > a,
+.zla-layout .VPSidebarItem .link > a.router-link-active {
+  background: color-mix(in oklab, var(--vp-c-brand-soft) 85%, transparent);
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--vp-c-brand-2) 40%, transparent);
+  position: relative;
+}
+
+.zla-layout .VPSidebarItem.is-active .link > a::before,
+.zla-layout .VPSidebarItem .link > a.router-link-active::before {
+  content: '';
+  position: absolute;
+  left: -0.22rem;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    var(--vp-c-brand-2),
+    color-mix(in oklab, var(--vp-c-brand-1) 70%, var(--vp-c-brand-3) 30%)
+  );
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.18s ease-out;
+}
+
+.zla-layout .VPSidebarItem.is-active .link > a.router-link-active::before,
+.zla-layout .VPSidebarItem .link > a.router-link-active::before {
+  transform: scaleY(1);
+}
+
+/* Nested items: subtle guide line */
+
+.zla-layout .VPSidebar .items .items {
+  margin-left: 0.7rem;
+  border-left: 1px dashed color-mix(in oklab, var(--vp-c-border) 60%, transparent);
+  padding-left: 0.5rem;
+}
+
+/* Sidebar focus */
+
+.zla-layout .VPSidebarItem .link > a:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--vp-c-brand-2) 80%, transparent);
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Doc Outline / TOC                                                          */
+/* -------------------------------------------------------------------------- */
+
+.zla-layout .VPDocAsideOutline {
+  font-size: 0.78rem;
+}
+
+.zla-layout .VPDocAsideOutline .outline-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 550;
+  color: var(--vp-c-text-3);
+  margin-bottom: 0.4rem;
+}
+
+.zla-layout .VPDocAsideOutline .outline-content {
+  border-left: 1px solid color-mix(in oklab, var(--vp-c-border) 70%, transparent);
+  padding-left: 0.75rem;
+  margin-left: 0.1rem;
+}
+
+/* TOC links */
+
+.zla-layout .VPDocAsideOutline a.outline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.16rem 0;
+  text-decoration: none;
+  color: var(--vp-c-text-2);
+  transition:
+    color 0.16s ease-out,
+    transform 0.12s ease-out;
+}
+
+.zla-layout .VPDocAsideOutline a.outline-link:hover {
+  color: var(--vp-c-text-1);
+  transform: translateX(1px);
+}
+
+/* Active heading */
+
+.zla-layout .VPDocAsideOutline a.outline-link.active {
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+
+/* Optional dot marker if present in theme DOM */
+
+.zla-layout .VPDocAsideOutline .outline-marker {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--vp-c-border) 70%, transparent);
+  transition:
+    background 0.16s ease-out,
+    box-shadow 0.16s ease-out;
+}
+
+.zla-layout .VPDocAsideOutline .outline-marker.active {
+  background: var(--vp-c-brand-2);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--vp-c-brand-soft) 75%, transparent);
+}

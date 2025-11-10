@@ -1,0 +1,39 @@
+name: 🧪 Generate Coverage Report to Codecov
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'feat/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run tests and collect coverage
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout code
+      - name: 📂 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # Step 2: Set up Node.js and pnpm
+      - name: 📦 Set up Node.js and pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: |
+            - recursive: true
+              args: [--frozen-lockfile]
+
+      - name: ✅ Run tests
+        run: pnpm run test:coverage
+
+      - name: 📤 Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

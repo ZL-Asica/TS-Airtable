@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+Disallow: /api.index
+
+Sitemap: https://airtable.zla.app/sitemap.xml

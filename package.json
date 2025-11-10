@@ -1,0 +1,95 @@
+{
+  "name": "ts-airtable",
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.20.0",
+  "description": "A tiny, fetch-based JavaScript/TypeScript Airtable Web API client.",
+  "author": {
+    "name": "ZL Asica",
+    "email": "zl@zla.app",
+    "url": "https://github.com/ZL-Asica/"
+  },
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/ZL-Asica",
+  "homepage": "https://airtable.zla.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZL-Asica/ts-airtable.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ZL-Asica/ts-airtable/issues"
+  },
+  "keywords": [
+    "airtable-api",
+    "airtable-client",
+    "airtable-web-api",
+    "airtable-sdk",
+    "library",
+    "utilities",
+    "airtable",
+    "zl-asica",
+    "zla",
+    "ZL Asica"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build",
+    "docs": "typedoc --exclude 'src/__tests__/**/*' && pnpm docs:clean",
+    "docs:clean": "node fix-markdown.ts",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "postinstall": "husky || true"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^6.2.0",
+    "@types/node": "^24.10.0",
+    "@vitest/coverage-v8": "^4.0.8",
+    "bumpp": "^10.3.1",
+    "eslint": "^9.38.0",
+    "eslint-plugin-format": "^1.0.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2",
+    "tsdown": "^0.16.0",
+    "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^5.9.3",
+    "vitepress": "2.0.0-alpha.12",
+    "vitepress-sidebar": "^1.33.0",
+    "vitest": "^4.0.7",
+    "vue": "^3.5.24"
+  },
+  "lint-staged": {
+    "**/*.{ts,tsx,mjs,js,json,css,md,yml}": [
+      "eslint --fix"
+    ],
+    "**/*.{md}": [
+      "prettier --write"
+    ]
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  }
+}

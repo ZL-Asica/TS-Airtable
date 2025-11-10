@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="128" height="128"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="SvgjsTitle1003">Airtable TS client logo</title>
+  <desc id="SvgjsDesc1002">
+    Logo with colorful tabs, a grid panel, and a JS·TS badge for a typed Airtable Web API client.
+  </desc>
+
+  <g>
+    <!-- outer container -->
+    <rect x="12" y="12" width="104" height="104" rx="24" fill="#E5E7EB" stroke="#CBD5F5" stroke-width="2"></rect>
+
+    <!-- colorful tabs -->
+    <rect x="34" y="26" width="18" height="10" rx="5" fill="#F97316"></rect>
+    <rect x="56" y="26" width="18" height="10" rx="5" fill="#22C55E"></rect>
+    <rect x="78" y="26" width="18" height="10" rx="5" fill="#3B82F6"></rect>
+
+    <!-- inner grid panel (moved down a bit) -->
+    <rect x="24" y="40" width="80" height="60" rx="16" fill="#F9FAFB" stroke="#9CA3AF" stroke-width="2"></rect>
+
+    <!-- vertical grid lines -->
+    <line x1="50.67" y1="40" x2="50.67" y2="100" stroke="#E5E7EB" stroke-width="1.5"></line>
+    <line x1="77.33" y1="40" x2="77.33" y2="100" stroke="#E5E7EB" stroke-width="1.5"></line>
+
+    <!-- horizontal grid lines -->
+    <line x1="24" y1="60" x2="104" y2="60" stroke="#E5E7EB" stroke-width="1.5"></line>
+    <line x1="24" y1="80" x2="104" y2="80" stroke="#E5E7EB" stroke-width="1.5"></line>
+
+    <!-- highlighted cell -->
+    <rect x="28" y="44" width="22" height="14" rx="6" fill="#60A5FA"></rect>
+
+    <!-- JS·TS badge -->
+    <rect x="68" y="90" width="40" height="20" rx="10" fill="#111827"></rect>
+    <text x="88" y="100" fill="#FACC15" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="9" font-weight="700" text-anchor="middle" dominant-baseline="central">
+      JS·TS
+    </text>
+  </g>
+</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>
