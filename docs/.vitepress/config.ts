@@ -1,4 +1,6 @@
 import type { DefaultTheme, UserConfig } from 'vitepress'
+import { execSync } from 'node:child_process'
+import path from 'node:path'
 import { defineConfig } from 'vitepress'
 import { generateSidebar } from 'vitepress-sidebar'
 import pkg from '../../package.json' with { type: 'json' }
@@ -31,8 +33,42 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
     ['meta', { name: 'apple-mobile-web-app-title', content: 'Airtable TS' }],
     ['meta', { name: 'robots', content: 'noindex,nofollow,noarchive' }],
   ],
+  transformPageData(pageData, ctx) {
+    const rel = pageData.relativePath
+
+    if (rel === 'api/index.md') {
+      try {
+        // docs directory (srcDir)'s parent directory
+        const srcDir = ctx.siteConfig.srcDir
+        // The actual file in Git
+        const sourcePath = path.join(srcDir, 'api.index.md')
+
+        // Fetch the last updated timestamp in ms
+        const ts = execSync(`git log -1 --pretty=%ct -- "${sourcePath}"`, {
+          encoding: 'utf8',
+        }).trim()
+
+        if (ts) {
+          pageData.lastUpdated = Number(ts) * 1000
+        }
+      }
+      catch (e) {
+        // If the git command fails, keep the default behavior (possibly undefined)
+        console.warn('failed to get lastUpdated for api.index.md', e)
+      }
+    }
+
+    // Only keep index of /api/. Hide all other /api/** editLink
+    if (rel?.startsWith('api') && !rel.endsWith('index.md')) {
+      pageData.frontmatter = {
+        ...pageData.frontmatter,
+        editLink: false,
+        lastUpdated: false,
+      }
+    }
+  },
   themeConfig: {
-    logo: '/logo.png',
+    logo: '/favicon.svg',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Features', link: '/guide/features/' },
@@ -85,7 +121,26 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
       ],
       ...apiSidebar,
     },
+    editLink: {
+      pattern: ({ filePath }) => {
+        const base = 'https://github.com/ZL-Asica/TS-Airtable/edit/main/docs'
+
+        // `filePath` should be "api/index.html"
+        const isAPIIndex = filePath.startsWith('api/') && filePath.endsWith('index.md')
+
+        if (isAPIIndex) {
+          // Index files live directly under `docs/` as `api.index.md`
+          return `${base}/api.index.md`
+        }
+
+        // files in `guide` folder map directly
+        // Other files are generated, should not be able to be edited.
+        // handled by `transformPageData` above.
+        return `${base}/${filePath}`
+      },
+    },
   },
+  lastUpdated: true,
   ignoreDeadLinks: true,
   sitemap: {
     hostname: 'https://airtable.zla.app',

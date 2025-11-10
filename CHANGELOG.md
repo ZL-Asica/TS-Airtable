@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-11-10
+
+### Added
+
+- NotFound page layout with i18n support in Vitepress documentation site.
+- `Contributting` in header links in Vitepress documentation site.
+- Enabled `editlink` and `lastUpdated` for all non-auto-generated pages in Vitepress documentation site.
+  - Avoiding generation pages' logic handled by `transformPageData` hook in `config.ts`.
+
+### Changes
+
+- Documentation footer card only display in `api` route now.
+
+### Fixed
+
+- Removed unsupported `@link` tag in Typedoc generated markdown files to avoid warning.
+
 ## [0.2.2] - 2025-11-10
 
 ### Fixed
