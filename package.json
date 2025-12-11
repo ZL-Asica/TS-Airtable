@@ -1,7 +1,7 @@
 {
   "name": "ts-airtable",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "packageManager": "pnpm@10.25.0",
   "description": "A tiny, fetch-based JavaScript/TypeScript Airtable Web and Node API client.",
   "author": {
