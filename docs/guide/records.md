@@ -294,10 +294,17 @@ const base = Airtable.base<Task>(process.env.AIRTABLE_BASE_ID!)
 const records = await base('Tasks').select({ view: 'Grid view' }).all()
 ```
 
+If your tables contain **attachment fields** (images, PDFs, etc.), you can also plug in an attachment transformer on the cache store:
+
+- Implement `transformAttachment(attachment, ctx)` on your `AirtableCacheStore`.
+- The Records API will call it for every attachment object **before** results are cached and returned.
+- The built-in `InMemoryCacheStore` includes a simple, ID-based memoization helper you can extend (e.g. to re-host files and replace short-lived Airtable URLs with your own).
+
 For a full guide to:
 
 - how keys are generated,
 - how invalidation works,
+- how attachment transformation fits into caching,
 - how to plug in Redis / KV,
 - and when you should (or shouldn’t) use caching,
 

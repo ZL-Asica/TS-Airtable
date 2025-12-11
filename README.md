@@ -20,6 +20,7 @@
 - [x] Built-in retries with exponential backoff
 - [x] Support Node, Web, Edge, and even more environments
 - [x] Built-in pluggable **record caching** (with a built-in in-memory store)
+- [x] Optional **attachment URL transformation** hook for re-hosting Airtable attachments (e.g. to S3 / R2 / your CDN)
 - [ ] (WIP) Built-in logging interface to trigger logging when needed
 
 It’s meant to be boring, predictable glue around Airtable’s HTTP API — no magic.
@@ -188,7 +189,44 @@ const client = new AirtableClient<Task>({
 })
 ```
 
-For details on key strategy, invalidation, custom stores (Redis / KV, etc.) and when you should use caching, see the [Caching documentation](https://airtable.zla.app/guide/features/caching).
+### Attachment URL transformation (advanced)
+
+If your base uses **attachment fields**, you may want to avoid relying on Airtable’s
+short-lived signed URLs when you cache records.
+
+You can plug a custom `transformAttachment` function into your cache store:
+
+```ts
+import type {
+  AirtableAttachment,
+  AirtableAttachmentCacheContext,
+  AirtableCacheStore,
+} from 'ts-airtable'
+
+const store: AirtableCacheStore = {
+  // ... your get / set / delete / deleteByPrefix ...
+
+  async transformAttachment(
+    attachment: AirtableAttachment,
+    ctx: AirtableAttachmentCacheContext,
+  ): Promise<AirtableAttachment> {
+    // Example: re-host to your own storage and return a new URL.
+    // This is called before records are cached and returned.
+
+    // TODO: download attachment.url, upload to S3/R2/etc, build stableUrl...
+    const stableUrl = attachment.url // replace with your own URL
+
+    return { ...attachment, url: stableUrl }
+  },
+}
+```
+
+The built-in `InMemoryCacheStore` ships with a simple ID-based memoization
+for attachments (per-process) so that heavy transformations only run once per
+`attachment.id`. For production setups (e.g. Cloudflare KV + R2) see:
+
+- [Caching](https://airtable.zla.app/guide/features/caching)
+- [Cloudflare KV / R2 cache store example](https://airtable.zla.app/guide/examples/custom-cache-store-cloudflare-kv)
 
 ## Error handling
 
