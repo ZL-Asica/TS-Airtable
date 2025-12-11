@@ -1,4 +1,5 @@
-import type { AirtableCacheStore } from '@/types/cache-store'
+import type { AirtableAttachment } from '@/types'
+import type { AirtableAttachmentCacheContext, AirtableCacheStore } from '@/types/cache-store'
 
 /**
  * In-memory implementation of {@link AirtableCacheStore} with:
@@ -36,6 +37,20 @@ export class InMemoryCacheStore implements AirtableCacheStore {
    * Defaults to 1000 entries.
    */
   private readonly maxSize: number
+
+  /**
+   * Per-attachment in-memory memoization, keyed by `attachment.id`.
+   *
+   * This is independent from the main key–value map used for records.
+   * It lets the cache store remember how a given Airtable attachment
+   * was transformed (for example, re-hosted to your own storage) and
+   * reuse that transformed representation the next time the same
+   * attachment ID is encountered.
+   *
+   * This map lives only for the lifetime of this `InMemoryCacheStore`
+   * instance and does not survive process restarts.
+   */
+  private attachmentById = new Map<string, AirtableAttachment>()
 
   /**
    * Creates a new in-memory cache store.
@@ -189,6 +204,84 @@ export class InMemoryCacheStore implements AirtableCacheStore {
         this.map.delete(k)
       }
     }
+  }
+
+  /**
+   * Transforms an Airtable attachment object before it is cached.
+   *
+   * This sample implementation demonstrates **ID-based memoization**
+   * without performing any network or filesystem I/O:
+   *
+   * - It keeps an in-memory map keyed by `attachment.id`.
+   * - The first time a given attachment ID is seen, the attachment
+   *   is stored in {@link attachmentById} and returned as-is.
+   * - Subsequent calls with the *same* `attachment.id` will return
+   *   the previously stored attachment instance, avoiding repeated
+   *   work for that attachment within the lifetime of this cache
+   *   store instance.
+   *
+   * This is intentionally conservative:
+   *
+   * - It does **not** rely on browser APIs like `localStorage`, so it
+   *   works in Node.js, Edge runtimes, and browsers.
+   * - It does **not** attempt to download or re-host the file; the
+   *   attachment’s `url` is left unchanged.
+   *
+   * In a real-world application, this method is the place where you
+   * would plug in heavier logic, for example:
+   *
+   * - Downloading the attachment from Airtable using `attachment.url`.
+   * - Uploading the bytes to your own storage (e.g. S3, R2, local
+   *   filesystem, or a media CDN).
+   * - Replacing `attachment.url` with a long-lived, stable URL that
+   *   you control.
+   *
+   * When you add that kind of logic, the `attachmentById` map ensures
+   * that the expensive "download + upload" step only runs **once per
+   * attachment ID** per cache-store instance, even if the same record
+   * (or different records that reference the same attachment) is seen
+   * many times.
+   *
+   * @param attachment - The Airtable attachment object as returned by
+   *   the Airtable API. At minimum it contains a stable `id` and a
+   *   short-lived signed `url`.
+   * @param _ - Context about where this attachment was found:
+   *   base, table, record, and field name. This can be useful if your
+   *   transformation wants to organize objects by location, e.g.
+   *   `baseId/tableId/recordId/filename`.
+   *
+   * @returns The attachment object that should be written into the
+   *   record cache. In this sample implementation it is the original
+   *   attachment (or a previously memoized copy) without any changes.
+   *
+   * @example
+   * // Example of extending this implementation:
+   * // 1. Subclass InMemoryCacheStore
+   * // 2. Override `transformAttachment` to download + re-host files
+   * // 3. Still call `super.transformAttachment(...)` to keep the
+   * //    ID-based memoization behavior.
+   */
+  async transformAttachment(
+    attachment: AirtableAttachment,
+    _: AirtableAttachmentCacheContext,
+  ): Promise<AirtableAttachment> {
+    // If we have already seen this attachment ID, reuse the
+    // previously stored version to avoid re-running any heavy
+    // transformation logic the caller might add here.
+    const existing = this.attachmentById.get(attachment.id)
+    if (existing) {
+      return existing
+    }
+
+    // In this sample we do not modify the attachment; we simply
+    // memoize it. This is the hook where you could:
+    // - Fetch `attachment.url`
+    // - Upload to your own storage
+    // - Replace `attachment.url` with a long-lived URL
+    const transformed: AirtableAttachment = attachment
+
+    this.attachmentById.set(attachment.id, transformed)
+    return transformed
   }
 
   /**

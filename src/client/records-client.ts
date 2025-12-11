@@ -1,5 +1,6 @@
 import type { AirtableCoreClient } from './core'
 import type {
+  AirtableAttachment,
   AirtableFieldSet,
   AirtableRecord,
   CreateRecordInput,
@@ -18,7 +19,7 @@ import type {
   AirtableRecordsCacheOnErrorContext,
   AirtableRecordsCacheOptions,
 } from '@/types/cache-store'
-import { listKey, recordKey, recordPrefix, tablePrefix } from '@/utils'
+import { listKey, looksLikeAttachment, recordKey, recordPrefix, tablePrefix } from '@/utils'
 import { MAX_RECORDS_PER_BATCH } from './core'
 
 /**
@@ -113,6 +114,8 @@ export class AirtableRecordsClient<
     const result = await this.core.requestJson<ListRecordsResult<TFields>>(url, {
       method: 'GET',
     })
+
+    await this.transformAttachmentsInListResult(tableIdOrName, result)
 
     if (key) {
       await this.cacheSet(key, result)
@@ -281,6 +284,8 @@ export class AirtableRecordsClient<
     const result = await this.core.requestJson<AirtableRecord<TFields>>(url, {
       method: 'GET',
     })
+
+    await this.transformAttachmentsInRecord(tableIdOrName, result)
 
     if (key) {
       await this.cacheSet(key, result)
@@ -786,6 +791,96 @@ export class AirtableRecordsClient<
     catch (err) {
       this.handleCacheError(err, { op: 'delete', prefix })
       // Error already handled according to `failOnCacheError`
+    }
+  }
+
+  /**
+   * Applies the cache store's attachment transformer to all attachment fields
+   * in a single record, if one is configured.
+   *
+   * This method is invoked by high-level read APIs (such as `listRecords`
+   * and `getRecord`) **before** their results are cached or returned to
+   * the caller. Its purpose is to:
+   *
+   * - Detect fields that contain Airtable-style attachment arrays.
+   * - Call `cache.transformAttachment(...)` once for each attachment
+   *   object in those fields.
+   * - Replace the original attachment objects with whatever the
+   *   transformer returns (e.g. with re-hosted URLs).
+   *
+   * If no cache store is configured, or the store does not implement
+   * `transformAttachment`, this method is a no-op.
+   *
+   * @typeParam TFields - Shape of the record's `fields` object.
+   *
+   * @param tableIdOrName - Table identifier or name that the record
+   *   belongs to. Passed through to the transformer context so callers
+   *   can, for example, build storage paths like `baseId/tableId/...`.
+   * @param record - The record whose attachment fields should be
+   *   inspected and transformed in-place.
+   */
+  private async transformAttachmentsInRecord<TFields>(
+    tableIdOrName: string,
+    record: AirtableRecord<TFields>,
+  ): Promise<void> {
+    const transformer = this.cache?.transformAttachment
+    if (!transformer) {
+      return
+    }
+
+    const fields = record.fields as Record<string, unknown>
+
+    for (const [fieldName, raw] of Object.entries(fields)) {
+      if (!Array.isArray(raw) || raw.length === 0) {
+        continue
+      }
+      if (!looksLikeAttachment(raw[0])) {
+        continue
+      }
+
+      const attachments = raw as AirtableAttachment[]
+      for (let i = 0; i < attachments.length; i++) {
+        attachments[i] = await transformer(attachments[i], {
+          baseId: this.core.baseId,
+          tableIdOrName,
+          recordId: record.id,
+          fieldName,
+        })
+      }
+    }
+  }
+
+  /**
+   * Applies attachment transformation to all records in a list result.
+   *
+   * This helper walks over `result.records` and delegates to
+   * {@link transformAttachmentsInRecord} for each record. It is used
+   * by `listRecords` so that:
+   *
+   * - Every attachment object in the page has a chance to be rewritten
+   *   by `cache.transformAttachment`, and
+   * - The transformed records are what get written into the cache as
+   *   well as returned to the caller.
+   *
+   * If no cache store is configured, or the store does not implement
+   * `transformAttachment`, this method is a no-op.
+   *
+   * @typeParam TFields - Shape of the record `fields` in the list.
+   *
+   * @param tableIdOrName - Table identifier or name that all records
+   *   in this list belong to.
+   * @param result - The `ListRecordsResult` whose `records` array
+   *   should be processed in-place.
+   */
+  private async transformAttachmentsInListResult<TFields>(
+    tableIdOrName: string,
+    result: ListRecordsResult<TFields>,
+  ): Promise<void> {
+    if (!this.cache?.transformAttachment) {
+      return
+    }
+    for (const rec of result.records) {
+      await this.transformAttachmentsInRecord(tableIdOrName, rec)
     }
   }
 }

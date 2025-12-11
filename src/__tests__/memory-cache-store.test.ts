@@ -145,4 +145,115 @@ describe('inMemoryCacheStore - delete & deleteByPrefix', () => {
     // key should still be there
     expect(store.get('foo')).toBe('bar')
   })
+
+  describe('inMemoryCacheStore - transformAttachment', () => {
+    it('memoizes attachments by id and returns the same instance on subsequent calls', async () => {
+      const store = new InMemoryCacheStore()
+
+      const ctx = {
+        baseId: 'appTest',
+        tableIdOrName: 'Tasks',
+        recordId: 'rec1',
+        fieldName: 'Attachments',
+      }
+
+      const firstAttachment = {
+        id: 'att1',
+        url: 'https://airtable.com/tmp/att1',
+        filename: 'file-a.png',
+      } as any
+
+      const secondAttachmentWithSameId = {
+      // same id, but different url to prove we reuse the first one
+        id: 'att1',
+        url: 'https://airtable.com/tmp/att1-different',
+        filename: 'file-a-new.png',
+      } as any
+
+      const result1 = await store.transformAttachment(firstAttachment, ctx)
+      const result2 = await store.transformAttachment(
+        secondAttachmentWithSameId,
+        ctx,
+      )
+
+      // For the first call we simply return the original object
+      expect(result1).toBe(firstAttachment)
+
+      // For the second call with the same id, we should reuse the
+      // previously memoized instance instead of the new object
+      expect(result2).toBe(result1)
+
+      // And the reused instance should still reflect the original
+      // attachment rather than the second one’s fields
+      expect(result2.url).toBe('https://airtable.com/tmp/att1')
+      expect(result2.filename).toBe('file-a.png')
+    })
+
+    it('does not mix attachments with different ids', async () => {
+      const store = new InMemoryCacheStore()
+
+      const ctx = {
+        baseId: 'appTest',
+        tableIdOrName: 'Tasks',
+        recordId: 'rec1',
+        fieldName: 'Attachments',
+      }
+
+      const attachmentA = {
+        id: 'attA',
+        url: 'https://airtable.com/tmp/attA',
+      } as any
+
+      const attachmentB = {
+        id: 'attB',
+        url: 'https://airtable.com/tmp/attB',
+      } as any
+
+      const resultA = await store.transformAttachment(attachmentA, ctx)
+      const resultB = await store.transformAttachment(attachmentB, ctx)
+
+      // Different ids should be memoized as different entries
+      expect(resultA).toBe(attachmentA)
+      expect(resultB).toBe(attachmentB)
+      expect(resultA).not.toBe(resultB)
+    })
+
+    it('accepts context argument without affecting memoization semantics', async () => {
+      const store = new InMemoryCacheStore()
+
+      const attachment = {
+        id: 'attX',
+        url: 'https://airtable.com/tmp/attX',
+      } as any
+
+      const ctx1 = {
+        baseId: 'app1',
+        tableIdOrName: 'TableA',
+        recordId: 'rec1',
+        fieldName: 'FieldA',
+      }
+
+      const ctx2 = {
+        baseId: 'app2',
+        tableIdOrName: 'TableB',
+        recordId: 'rec2',
+        fieldName: 'FieldB',
+      }
+
+      const first = await store.transformAttachment(attachment, ctx1)
+      const second = await store.transformAttachment(
+        {
+        // same id, slightly different data
+          id: 'attX',
+          url: 'https://airtable.com/tmp/attX-new',
+        } as any,
+        ctx2,
+      )
+
+      // Context differences should not change memoization behavior:
+      // as long as the id is the same, we reuse the first instance.
+      expect(first).toBe(second)
+      expect(second.url).toBe('https://airtable.com/tmp/attX')
+    })
+  })
 })

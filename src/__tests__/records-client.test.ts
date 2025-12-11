@@ -723,4 +723,171 @@ describe('airtableRecordsClient', () => {
 
     expect(onError).toHaveBeenCalled()
   })
+
+  // ---------------------------------------------------------------------------
+  // Attachment transformation tests
+  // ---------------------------------------------------------------------------
+
+  it('getRecord applies cache.transformAttachment to attachment fields before caching and returning', async () => {
+    const core = makeCore()
+
+    core.requestJson.mockResolvedValue({
+      id: 'rec1',
+      fields: {
+        Name: 'Task 1',
+        Attachments: [
+          {
+            id: 'att1',
+            url: 'https://airtable.com/temporary/att1',
+            filename: 'a.png',
+          },
+        ],
+      },
+    })
+
+    const transformAttachment = vi.fn(
+      async (attachment: any, ctx: any) => ({
+        ...attachment,
+        url: `https://cdn.example.com/${attachment.id}`,
+        transformed: true,
+        ctxSnapshot: ctx,
+      }),
+    )
+
+    const store = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      deleteByPrefix: vi.fn(),
+      transformAttachment,
+    }
+
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store: store as any,
+      defaultTtlMs: 1000,
+    })
+
+    const rec = await client.getRecord('Tasks', 'rec1')
+
+    // transformer called exactly once, with correct attachment + context
+    expect(transformAttachment).toHaveBeenCalledTimes(1)
+    const [attachmentArg, ctxArg] = transformAttachment.mock.calls[0]
+
+    expect(attachmentArg.id).toBe('att1')
+    expect(attachmentArg.url).toBe('https://airtable.com/temporary/att1')
+
+    expect(ctxArg).toEqual({
+      baseId: core.baseId,
+      tableIdOrName: 'Tasks',
+      recordId: 'rec1',
+      fieldName: 'Attachments',
+    })
+
+    // returned record sees the transformed attachment
+    const fields: any = rec.fields
+    expect(fields.Attachments[0].url).toBe('https://cdn.example.com/att1')
+    expect(fields.Attachments[0].transformed).toBe(true)
+
+    // value written to cache is also transformed, not the raw API response
+    expect(store.set).toHaveBeenCalledTimes(1)
+    const [, cachedValue] = store.set.mock.calls[0]
+
+    const cachedFields: any = (cachedValue as any).fields
+    expect(cachedFields.Attachments[0].url).toBe(
+      'https://cdn.example.com/att1',
+    )
+    expect(cachedFields.Attachments[0].transformed).toBe(true)
+  })
+
+  it('listRecords applies cache.transformAttachment for all attachment arrays and skips non-attachment arrays', async () => {
+    const core = makeCore()
+
+    core.requestJson.mockResolvedValue({
+      records: [
+        {
+          id: 'rec1',
+          fields: {
+            Name: 'Task 1',
+            Attachments: [
+              {
+                id: 'att1',
+                url: 'https://airtable.com/tmp/att1',
+                filename: 'a.png',
+              },
+              {
+                id: 'att2',
+                url: 'https://airtable.com/tmp/att2',
+                filename: 'b.png',
+              },
+            ],
+          },
+        },
+        {
+          id: 'rec2',
+          fields: {
+            Name: 'Task 2',
+            Attachments: [
+              {
+                id: 'att3',
+                url: 'https://airtable.com/tmp/att3',
+                filename: 'c.png',
+              },
+            ],
+            // This is an array but not an attachment array and should be ignored
+            Tags: ['alpha', 'beta'],
+          },
+        },
+      ],
+      offset: undefined,
+    })
+
+    const transformAttachment = vi.fn(
+      async (attachment: any, _ctx: any) => ({
+        ...attachment,
+        url: `https://cdn.example.com/${attachment.id}`,
+      }),
+    )
+
+    const store = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      deleteByPrefix: vi.fn(),
+      transformAttachment,
+    }
+
+    const client = new AirtableRecordsClient<TaskFields>(core, {
+      store: store as any,
+    })
+
+    const page = await client.listRecords('Tasks')
+
+    // 3 attachment objects total → transformer called 3 times
+    expect(transformAttachment).toHaveBeenCalledTimes(3)
+
+    // All attachments in the returned page should be rewritten
+    const r1Fields: any = page.records[0].fields
+    const r2Fields: any = page.records[1].fields
+
+    expect(r1Fields.Attachments[0].url).toBe('https://cdn.example.com/att1')
+    expect(r1Fields.Attachments[1].url).toBe('https://cdn.example.com/att2')
+    expect(r2Fields.Attachments[0].url).toBe('https://cdn.example.com/att3')
+
+    // Non-attachment arrays (e.g. Tags: string[]) are not passed to transformer
+    const allFirstArgs = transformAttachment.mock.calls.map(
+      ([att]) => (att as any).id,
+    )
+    expect(allFirstArgs).toEqual(['att1', 'att2', 'att3'])
+    expect(r2Fields.Tags).toEqual(['alpha', 'beta'])
+
+    // Cached value for listRecords should also contain transformed URLs
+    expect(store.set).toHaveBeenCalledTimes(1)
+    const [, cachedPage] = store.set.mock.calls[0]
+
+    const cachedRecords: any[] = (cachedPage as any).records
+    expect(cachedRecords[0].fields.Attachments[0].url).toBe(
+      'https://cdn.example.com/att1',
+    )
+    expect(cachedRecords[1].fields.Attachments[0].url).toBe(
+      'https://cdn.example.com/att3',
+    )
+  })
 })
