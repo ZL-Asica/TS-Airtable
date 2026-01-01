@@ -86,7 +86,7 @@
     "typedoc": "^0.28.15",
     "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.9.3",
-    "vitepress": "2.0.0-alpha.12",
+    "vitepress": "2.0.0-alpha.15",
     "vitepress-sidebar": "^1.33.1",
     "vitest": "^4.0.15",
     "vue": "^3.5.25"
