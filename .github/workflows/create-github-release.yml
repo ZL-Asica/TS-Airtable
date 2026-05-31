@@ -44,7 +44,7 @@ jobs:
             const releasePattern = /^v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
 
             if (context.eventName === "workflow_dispatch") {
-              const inputVersion = core.getInput("version", { required: true }).trim();
+              const inputVersion = (context.payload.inputs?.version || "").trim();
               const version = inputVersion.match(releasePattern)?.[1];
               if (!version) {
                 core.setFailed(`Invalid release version input: ${inputVersion}`);
