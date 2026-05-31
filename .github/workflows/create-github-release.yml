@@ -3,18 +3,29 @@ name: Create GitHub Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing version to publish, with or without the v prefix
+        required: true
+        type: string
 
 permissions:
   contents: write
   pull-requests: read
 
 concurrency:
-  group: create-github-release
+  group: create-github-release-${{ github.event.inputs.version || github.sha }}
   cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.detect.outputs.is_release }}
+      version: ${{ steps.detect.outputs.version }}
+      is_prerelease: ${{ steps.detect.outputs.is_prerelease }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Checkout (full history + tags)
         uses: actions/checkout@v4
@@ -30,6 +41,35 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const sha = context.sha;
+            const releasePattern = /^v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
+
+            if (context.eventName === "workflow_dispatch") {
+              const inputVersion = core.getInput("version", { required: true }).trim();
+              const version = inputVersion.match(releasePattern)?.[1];
+              if (!version) {
+                core.setFailed(`Invalid release version input: ${inputVersion}`);
+                return;
+              }
+
+              let body = "";
+              try {
+                const release = await github.rest.repos.getReleaseByTag({
+                  owner,
+                  repo,
+                  tag: `v${version}`,
+                });
+                body = (release.data.body || "").trim();
+              }
+              catch (error) {
+                core.info(`No existing GitHub Release found for v${version}; it will be created if needed.`);
+              }
+
+              core.setOutput("is_release", "true");
+              core.setOutput("version", version);
+              core.setOutput("is_prerelease", version.includes("-") ? "true" : "false");
+              core.setOutput("body", body);
+              return;
+            }
 
             const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner,
@@ -37,13 +77,13 @@ jobs:
               commit_sha: sha,
             });
 
-            const releasePattern = /^release:\s+v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
+            const releaseTitlePattern = /^release:\s+v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
             const releasePr = prs.data.find((pr) => {
               const title = pr.title || "";
               const branch = pr.head?.ref || "";
               const labels = pr.labels?.map((label) => label.name) || [];
               return labels.includes("release")
-                && releasePattern.test(title)
+                && releaseTitlePattern.test(title)
                 && /^release\/v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(branch);
             });
 
@@ -52,7 +92,7 @@ jobs:
               return;
             }
 
-            const titleMatch = (releasePr.title || "").match(releasePattern);
+            const titleMatch = (releasePr.title || "").match(releaseTitlePattern);
             const branchMatch = (releasePr.head?.ref || "").match(/^release\/v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/);
             const version = titleMatch?.[1] || branchMatch?.[1];
             if (!version) {
@@ -134,3 +174,73 @@ jobs:
           draft: false
           prerelease: ${{ steps.detect.outputs.is_prerelease == 'true' }}
           make_latest: ${{ steps.detect.outputs.is_prerelease == 'true' && 'false' || 'legacy' }}
+
+  publish-npm:
+    name: Publish to npm
+    needs: release
+    if: needs.release.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+
+      - name: Setup Node.js for npm
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and test
+        run: |
+          pnpm run lint
+          pnpm run test:ci
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Check package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          RELEASE_VERSION="${{ needs.release.outputs.version }}"
+
+          echo "Release version: $RELEASE_VERSION"
+          echo "package.json:    $PKG_VERSION"
+
+          if [ "$PKG_VERSION" != "$RELEASE_VERSION" ]; then
+            echo "package.json version does not match release version."
+            exit 1
+          fi
+
+      - name: Check npm version
+        id: npm_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_VERSION="${{ needs.release.outputs.version }}"
+
+          if npm view ts-airtable@"$RELEASE_VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "ts-airtable@$RELEASE_VERSION is already published."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.npm_version.outputs.exists != 'true'
+        run: pnpm publish --access public --no-git-checks --provenance
