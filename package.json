@@ -75,21 +75,21 @@
   "devDependencies": {
     "@antfu/eslint-config": "^6.6.1",
     "@types/node": "^24.10.0",
-    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/coverage-v8": "^4.1.7",
     "bumpp": "^10.3.2",
     "eslint": "^9.38.0",
     "eslint-plugin-format": "^1.1.0",
-    "eslint-plugin-vuejs-accessibility": "^2.4.1",
+    "eslint-plugin-vuejs-accessibility": "^2.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "tsdown": "^0.17.2",
-    "typedoc": "^0.28.15",
-    "typedoc-plugin-markdown": "^4.9.0",
+    "typedoc": "^0.28.19",
+    "typedoc-plugin-markdown": "^4.11.0",
     "typescript": "^5.9.3",
     "vitepress": "2.0.0-alpha.12",
-    "vitepress-sidebar": "^1.33.1",
-    "vitest": "^4.0.15",
-    "vue": "^3.5.25"
+    "vitepress-sidebar": "^1.36.1",
+    "vitest": "^4.1.7",
+    "vue": "^3.5.35"
   },
   "lint-staged": {
     "**/*.{ts,tsx,mjs,js,json,css,md,yml}": [

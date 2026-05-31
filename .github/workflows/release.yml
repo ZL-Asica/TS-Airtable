@@ -5,44 +5,38 @@ on:
     tags:
       - 'v*'
 
-  workflow_dispatch: {}
-
 jobs:
   release:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write # Required for github release
-      packages: write # Required for NPM publish
-      id-token: write # Required for OIDC
+      contents: read
+      id-token: write # Required for npm trusted publishing
 
     steps:
-      # Step 1: Checkout code
       - name: 📂 Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js for npm
+      - name: 🛠️ Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+
       - name: 📦 Set up Node.js for npm
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
-          registry-url: 'https://registry.npmjs.org' # Default to npm registry
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
 
-      # Step 3: Set up Node.js and pnpm
-      - name: 🛠️ Set up Node.js and pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: |
-            - recursive: true
-              args: [--frozen-lockfile]
+      - name: 📥 Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      # Step 4: Lint and test
       - name: 🎨 Lint and test
         run: |
-          pnpm run lint:fix
+          pnpm run lint
           pnpm run test:ci
 
-      # Step 5: Build package
       - name: 🏗️ Build package
         run: pnpm build
 
@@ -60,4 +54,4 @@ jobs:
           fi
 
       - name: 🚀 Publish to npm
-        run: pnpm publish --access public --no-git-checks
+        run: pnpm publish --access public --no-git-checks --provenance
