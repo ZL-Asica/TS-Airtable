@@ -188,7 +188,6 @@ await client.records.updateRecords<Task>(
   'Tasks',
   [
     {
-      id: 'rec-ignored-when-upsert',
       fields: { 'External ID': '42', Status: 'Done' },
     },
   ],
@@ -202,8 +201,12 @@ await client.records.updateRecords<Task>(
 
 Depending on whether a record with that external key exists, the API will:
 
-- **update** it (and report in `updatedRecords`)
-- or **create** a new one (and report in `createdRecords`)
+- **update** it and report the record ID in `updatedRecords`
+- or **create** a new one and report the record ID in `createdRecords`
+
+For upserts, `id` is optional when `performUpsert` is provided. Every id-less
+record must include all fields listed in `fieldsToMergeOn`, and Airtable limits
+that list to one to three fields.
 
 ## Updating a single record
 
