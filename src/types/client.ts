@@ -27,9 +27,9 @@ export interface AirtableClientOptions {
   /**
    * Optional Airtable API version string.
    *
-   * This is accepted for compatibility with the official `airtable`
-   * client. At the moment this library always talks to the v0 HTTP API
-   * and does **not** interpret this value.
+   * This is accepted for compatibility with the official `airtable` client.
+   * When provided, the value is sent as `X-Airtable-API-Version`, while this
+   * library continues to use Airtable's v0 HTTP path.
    *
    * If you need to target a different API surface, prefer configuring
    * {@link endpointUrl} instead (e.g. pointing at a proxy or mock).
@@ -66,7 +66,6 @@ export interface AirtableClientOptions {
    * Custom fetch implementation.
    *
    * Useful for:
-   * - Node < 18 (no built-in global `fetch`)
    * - Custom HTTP agents (proxy, retries, logging, etc.)
    * - Tests, where you may wish to mock fetch.
    *
@@ -84,7 +83,7 @@ export interface AirtableClientOptions {
    * This flag is equivalent to removing `429` from `retryOnStatuses`, but
    * can be more convenient in simple setups.
    *
-   * Default: `true`.
+   * Default: `false`.
    *
    * If you need fine-grained control over which statuses are retried, prefer
    * setting {@link retryOnStatuses} explicitly.

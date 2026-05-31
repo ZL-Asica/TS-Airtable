@@ -250,6 +250,18 @@ describe('airtable global facade', () => {
     )
     expect(updated.records[0].id).toBe('recUpdated')
 
+    // --- update() with performUpsert -> updateRecords ---
+    const upserted = await table.update(
+      [{ fields: { name: 'external' } }],
+      { performUpsert: { fieldsToMergeOn: ['name'] } },
+    )
+    expect(updateRecords).toHaveBeenCalledWith(
+      'Tasks',
+      [{ fields: { name: 'external' } }],
+      { performUpsert: { fieldsToMergeOn: ['name'] } },
+    )
+    expect(upserted.records[0].id).toBe('recUpdated')
+
     // --- updateRecord() -> updateRecord ---
     const updatedOne = await table.updateRecord(
       'recUpdatedOne',

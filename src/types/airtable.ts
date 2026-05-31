@@ -12,6 +12,7 @@ import type {
   UpdateRecordInput,
   UpdateRecordsOptions,
   UpdateRecordsResult,
+  UpsertRecordInput,
 } from '@/types'
 
 // -----------------------------------------------------------------------------
@@ -211,8 +212,8 @@ export interface AirtableTable<TFields = AirtableFieldSet> {
    * Batch update or upsert records in this table.
    *
    * This corresponds to `table.update(records, options?)` and uses the
-   * underlying `updateRecords` API. Each record in `records` must contain
-   * an `id` and the fields to update.
+   * underlying `updateRecords` API. Regular updates require each record to
+   * contain an `id`; upserts may omit `id` when `performUpsert` is provided.
    *
    * Depending on {@link UpdateRecordsOptions.performUpsert}, this may perform
    * pure updates (by ID) or upserts based on external IDs.
@@ -231,10 +232,18 @@ export interface AirtableTable<TFields = AirtableFieldSet> {
    * ])
    * ```
    */
-  update: (
-    records: UpdateRecordInput<TFields>[],
-    options?: UpdateRecordsOptions,
-  ) => Promise<UpdateRecordsResult<TFields>>
+  update: {
+    (
+      records: UpdateRecordInput<TFields>[],
+      options?: Omit<UpdateRecordsOptions, 'performUpsert'>,
+    ): Promise<UpdateRecordsResult<TFields>>
+    (
+      records: UpsertRecordInput<TFields>[],
+      options: UpdateRecordsOptions & {
+        performUpsert: NonNullable<UpdateRecordsOptions['performUpsert']>
+      },
+    ): Promise<UpdateRecordsResult<TFields>>
+  }
 
   /**
    * Update a single record by ID.

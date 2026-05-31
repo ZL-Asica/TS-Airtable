@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AirtableCoreClient,
   DEFAULT_ENDPOINT_URL,
+  MAX_LIST_RECORDS_GET_URL_LENGTH,
   MAX_RECORDS_PER_BATCH,
 } from '@/client/core'
 import { AirtableError } from '@/errors'
@@ -23,6 +24,7 @@ describe('airtableCoreClient', () => {
   it('exports constants', () => {
     expect(DEFAULT_ENDPOINT_URL).toBe('https://api.airtable.com')
     expect(MAX_RECORDS_PER_BATCH).toBe(10)
+    expect(MAX_LIST_RECORDS_GET_URL_LENGTH).toBe(16_000)
   })
 
   it('throws if apiKey is missing', () => {
@@ -107,8 +109,9 @@ describe('airtableCoreClient', () => {
     expect(core.maxRetries).toBe(5)
     expect(core.retryInitialDelayMs).toBe(500)
     expect(core.retryOnStatuses).toEqual([429, 500, 502, 503, 504])
-    // Default behavior: do NOT retry when rate limited
-    expect(core.noRetryIfRateLimited).toBe(true)
+    expect(core.apiVersion).toBeUndefined()
+    // Default behavior: retry rate limits and respect Retry-After.
+    expect(core.noRetryIfRateLimited).toBe(false)
   })
 
   it('buildTableUrl builds table and record URLs with optional query', () => {
@@ -164,6 +167,28 @@ describe('airtableCoreClient', () => {
     search.set('q', 'test')
     const url3 = core.buildBaseUrl('/webhooks', search)
     expect(url3.searchParams.get('q')).toBe('test')
+  })
+
+  it('uses the v0 path for official-style and v-prefixed apiVersion values', () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'baseId',
+      fetch: vi.fn() as any,
+      apiVersion: '0.4.0',
+    })
+
+    expect(core.buildTableUrl('Tasks').pathname).toBe('/v0/baseId/Tasks')
+    expect(core.buildMetaUrl('/bases').pathname).toBe('/v0/meta/bases')
+    expect(core.buildBaseUrl('/webhooks').pathname).toBe('/v0/bases/baseId/webhooks')
+
+    const vPrefixed = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'baseId',
+      fetch: vi.fn() as any,
+      apiVersion: 'v1',
+    })
+
+    expect(vPrefixed.buildTableUrl('Tasks').pathname).toBe('/v0/baseId/Tasks')
   })
 
   it('buildListQuery returns undefined when no params and builds full query otherwise', () => {
@@ -306,6 +331,83 @@ describe('airtableCoreClient', () => {
     expect(headers['Content-Type']).toBe('text/plain')
   })
 
+  it('requestJson treats method names case-insensitively when setting Content-Type', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, { ok: true }),
+    )
+
+    const core = new AirtableCoreClient({
+      apiKey: 'secret',
+      baseId: 'baseId',
+      fetch: fetchMock as any,
+    })
+
+    await core.requestJson(new URL('https://example.com/api'), {
+      method: 'post',
+      body: JSON.stringify({ records: [] }),
+    })
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+    expect(headers['Content-Type']).toBe('application/json')
+  })
+
+  it('requestJson accepts Headers-like instances and tuple headers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+
+    const core = new AirtableCoreClient({
+      apiKey: 'secret',
+      baseId: 'baseId',
+      fetch: fetchMock as any,
+    })
+
+    await core.requestJson(new URL('https://example.com/headers'), {
+      method: 'GET',
+      headers: new Headers({ 'X-From-Headers': 'yes' }),
+    })
+    await core.requestJson(new URL('https://example.com/tuples'), {
+      method: 'GET',
+      headers: [['X-From-Tuple', 'yes']],
+    })
+    await core.requestJson(new URL('https://example.com/headers-like'), {
+      method: 'GET',
+      headers: {
+        forEach(callback: (value: string, key: string) => void) {
+          callback('yes', 'X-From-Headers-Like')
+        },
+      } as any,
+    })
+    await core.requestJson(new URL('https://example.com/iterable'), {
+      method: 'GET',
+      headers: {
+        * [Symbol.iterator]() {
+          yield ['X-From-Iterable', 'yes'] as const
+        },
+      } as any,
+    })
+
+    const [, headersInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const headersFromHeaders = headersInit.headers as Record<string, string>
+    expect(headersFromHeaders['x-from-headers']).toBe('yes')
+
+    const [, tupleInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+    const headersFromTuple = tupleInit.headers as Record<string, string>
+    expect(headersFromTuple['X-From-Tuple']).toBe('yes')
+
+    const [, headersLikeInit] = fetchMock.mock.calls[2] as [string, RequestInit]
+    const headersFromHeadersLike = headersLikeInit.headers as Record<string, string>
+    expect(headersFromHeadersLike['X-From-Headers-Like']).toBe('yes')
+
+    const [, iterableInit] = fetchMock.mock.calls[3] as [string, RequestInit]
+    const headersFromIterable = iterableInit.headers as Record<string, string>
+    expect(headersFromIterable['X-From-Iterable']).toBe('yes')
+  })
+
   it('handleResponse returns undefined for 204 status', async () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
@@ -330,6 +432,58 @@ describe('airtableCoreClient', () => {
     // @ts-expect-error testing private method
     const result = await core.handleResponse<{ foo: string }>(resp)
     expect(result).toEqual({ foo: 'bar' })
+  })
+
+  it('handleResponse parses JSON Content-Type case-insensitively', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: new Headers({ 'Content-Type': 'Application/JSON' }),
+    })
+
+    // @ts-expect-error testing private method
+    const result = await core.handleResponse(resp)
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('handleResponse returns undefined for empty JSON bodies', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = new Response('', {
+      status: 200,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+    })
+
+    // @ts-expect-error testing private method
+    const result = await core.handleResponse(resp)
+    expect(result).toBeUndefined()
+  })
+
+  it('handleResponse throws SyntaxError for invalid successful JSON', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = new Response('{not valid json', {
+      status: 200,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+    })
+
+    await expect(
+      // @ts-expect-error testing private method
+      core.handleResponse(resp),
+    ).rejects.toBeInstanceOf(SyntaxError)
   })
 
   it('handleResponse returns plain text for 2xx non-JSON Content-Type', async () => {
@@ -387,6 +541,26 @@ describe('airtableCoreClient', () => {
     ).rejects.toBeInstanceOf(AirtableError)
   })
 
+  it('handleResponse wraps invalid non-2xx JSON as AirtableError', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = new Response('{not valid json', {
+      status: 500,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+    })
+
+    await expect(
+      // @ts-expect-error testing private method
+      core.handleResponse(resp),
+    ).rejects.toMatchObject({
+      status: 500,
+    })
+  })
+
   it('shouldRetry respects maxRetries and retryOnStatuses when noRetryIfRateLimited is false', () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
@@ -409,21 +583,32 @@ describe('airtableCoreClient', () => {
     expect(core.shouldRetry(404, 0)).toBe(false)
   })
 
-  it('shouldRetry does not retry 429 by default when noRetryIfRateLimited is true', () => {
+  it('shouldRetry retries 429 by default and can disable rate-limit retries', () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
       baseId: 'base',
       fetch: vi.fn() as any,
       maxRetries: 2,
       retryOnStatuses: [429, 500],
-      // noRetryIfRateLimited omitted -> default true
     })
 
     // @ts-expect-error private method
-    expect(core.shouldRetry(429, 0)).toBe(false)
+    expect(core.shouldRetry(429, 0)).toBe(true)
     // Other statuses still follow retryOnStatuses
     // @ts-expect-error private method
     expect(core.shouldRetry(500, 0)).toBe(true)
+
+    const noRateLimitRetry = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+      maxRetries: 2,
+      retryOnStatuses: [429, 500],
+      noRetryIfRateLimited: true,
+    })
+
+    // @ts-expect-error private method
+    expect(noRateLimitRetry.shouldRetry(429, 0)).toBe(false)
   })
 
   it('getRetryDelayMs uses Retry-After header when valid', () => {
@@ -540,7 +725,39 @@ describe('airtableCoreClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('requestJson does not retry 429 when noRetryIfRateLimited is true (default)', async () => {
+  it('requestJson retries 429 by default', async () => {
+    const resp429 = jsonResponse(429, {
+      error: { type: 'RATE_LIMIT', message: 'retry' },
+    })
+    const success = jsonResponse(200, { ok: true })
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(resp429)
+      .mockResolvedValueOnce(success)
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      retryOnStatuses: [429],
+      maxRetries: 3,
+      retryInitialDelayMs: 1,
+    })
+
+    // @ts-expect-error private property
+    core.sleep = vi.fn().mockResolvedValue(undefined)
+
+    const result = await core.requestJson<{ ok: boolean }>(
+      new URL('https://example.com'),
+      { method: 'GET' },
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('requestJson does not retry 429 when noRetryIfRateLimited is true', async () => {
     const resp429 = jsonResponse(429, {
       error: { type: 'RATE_LIMIT', message: 'no retry' },
     })
@@ -554,7 +771,7 @@ describe('airtableCoreClient', () => {
       retryOnStatuses: [429],
       maxRetries: 3,
       retryInitialDelayMs: 1,
-      // noRetryIfRateLimited omitted → default true
+      noRetryIfRateLimited: true,
     })
 
     const url = new URL('https://example.com')
@@ -563,6 +780,150 @@ describe('airtableCoreClient', () => {
       AirtableError,
     )
     // Should only call fetch once (no retries on 429)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('requestJson retries network errors and eventually succeeds', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      maxRetries: 2,
+      retryInitialDelayMs: 1,
+    })
+
+    // @ts-expect-error private property
+    core.sleep = vi.fn().mockResolvedValue(undefined)
+
+    const result = await core.requestJson<{ ok: boolean }>(
+      new URL('https://example.com'),
+      { method: 'GET' },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('requestJson retries HEAD network errors', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      maxRetries: 2,
+      retryInitialDelayMs: 1,
+    })
+
+    // @ts-expect-error private property
+    core.sleep = vi.fn().mockResolvedValue(undefined)
+
+    const result = await core.requestJson<{ ok: boolean }>(
+      new URL('https://example.com'),
+      { method: 'HEAD' },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('requestJson retries opted-in POST read requests after network errors', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce(jsonResponse(200, { records: [] }))
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      maxRetries: 2,
+      retryInitialDelayMs: 1,
+      retryOnStatuses: [],
+    })
+
+    // @ts-expect-error private property
+    core.sleep = vi.fn().mockResolvedValue(undefined)
+
+    const result = await core.requestJson<{ records: unknown[] }>(
+      new URL('https://example.com/listRecords'),
+      {
+        method: 'POST',
+        body: JSON.stringify({ filterByFormula: 'TRUE()' }),
+        retryNetworkErrors: true,
+      },
+    )
+
+    expect(result.records).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('requestJson stops retrying network errors after maxRetries', async () => {
+    const error = new Error('network down')
+    const fetchMock = vi.fn().mockRejectedValue(error)
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      maxRetries: 1,
+      retryInitialDelayMs: 1,
+    })
+
+    // @ts-expect-error private property
+    core.sleep = vi.fn().mockResolvedValue(undefined)
+
+    await expect(
+      core.requestJson(new URL('https://example.com'), { method: 'GET' }),
+    ).rejects.toBe(error)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('requestJson does not retry network errors for non-idempotent methods', async () => {
+    const error = new Error('network down after mutation')
+    const fetchMock = vi.fn().mockRejectedValue(error)
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      maxRetries: 2,
+      retryInitialDelayMs: 1,
+    })
+
+    await expect(
+      core.requestJson(new URL('https://example.com'), {
+        method: 'POST',
+        body: JSON.stringify({ records: [] }),
+      }),
+    ).rejects.toBe(error)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('requestJson does not retry AbortError', async () => {
+    const abortError = new Error('aborted')
+    abortError.name = 'AbortError'
+    const fetchMock = vi.fn().mockRejectedValue(abortError)
+
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      maxRetries: 2,
+      retryInitialDelayMs: 1,
+    })
+
+    await expect(
+      core.requestJson(new URL('https://example.com'), { method: 'GET' }),
+    ).rejects.toBe(abortError)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

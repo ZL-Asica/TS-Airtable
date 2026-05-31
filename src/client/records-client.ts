@@ -13,6 +13,7 @@ import type {
   UpdateRecordInput,
   UpdateRecordsOptions,
   UpdateRecordsResult,
+  UpsertRecordInput,
 } from '@/types'
 import type {
   AirtableCacheStore,
@@ -20,7 +21,7 @@ import type {
   AirtableRecordsCacheOptions,
 } from '@/types/cache-store'
 import { listKey, looksLikeAttachment, recordKey, recordPrefix, tablePrefix } from '@/utils'
-import { MAX_RECORDS_PER_BATCH } from './core'
+import { MAX_LIST_RECORDS_GET_URL_LENGTH, MAX_RECORDS_PER_BATCH } from './core'
 
 /**
  * Records API client: list / get / create / update / delete / upsert.
@@ -105,15 +106,15 @@ export class AirtableRecordsClient<
       }
     }
 
-    const url = this.core.buildTableUrl(
+    const query = this.core.buildListQuery(params)
+    const getUrl = this.core.buildTableUrl(
       tableIdOrName,
       undefined,
-      this.core.buildListQuery(params),
+      query,
     )
+    const { url, init } = this.buildListRecordsRequest(tableIdOrName, params, getUrl)
 
-    const result = await this.core.requestJson<ListRecordsResult<TFields>>(url, {
-      method: 'GET',
-    })
+    const result = await this.core.requestJson<ListRecordsResult<TFields>>(url, init)
 
     await this.transformAttachmentsInListResult(tableIdOrName, result)
 
@@ -366,13 +367,15 @@ export class AirtableRecordsClient<
    *   Defaults to `TDefaultFields` specified on the client.
    *
    * @param tableIdOrName - Table ID or table name.
-   * @param records - Records to update (each must include an `id`).
+   * @param records - Records to update or upsert. Regular updates must include
+   *   an `id`; upserts may omit `id` when `performUpsert` is provided.
    * @param options - Update options such as `typecast`, `performUpsert`
    *   and `returnFieldsByFieldId`.
    *
    * @returns A `UpdateRecordsResult` that includes:
    *   - `records`: all processed records
-   *   - `createdRecords` and `updatedRecords` when `performUpsert` is used
+   *   - `createdRecords` and `updatedRecords`: record ID arrays when
+   *     `performUpsert` is used
    *
    * @throws `AirtableError` - If any batch fails.
    *
@@ -382,20 +385,52 @@ export class AirtableRecordsClient<
    *   { id: 'rec1', fields: { Status: 'Doing' } },
    *   { id: 'rec2', fields: { Status: 'Done' } },
    * ])
+   *
+   * await client.records.updateRecords('Tasks', [
+   *   { fields: { ExternalId: 'task-123', Status: 'Done' } },
+   * ], {
+   *   performUpsert: { fieldsToMergeOn: ['ExternalId'] },
+   * })
    * ```
    */
   async updateRecords<TFields = TDefaultFields>(
     tableIdOrName: string,
     records: UpdateRecordInput<TFields>[],
+    options?: Omit<UpdateRecordsOptions, 'performUpsert'>,
+  ): Promise<UpdateRecordsResult<TFields>>
+
+  async updateRecords<TFields = TDefaultFields>(
+    tableIdOrName: string,
+    records: UpsertRecordInput<TFields>[],
+    options: UpdateRecordsOptions & {
+      performUpsert: NonNullable<UpdateRecordsOptions['performUpsert']>
+    },
+  ): Promise<UpdateRecordsResult<TFields>>
+
+  async updateRecords<TFields = TDefaultFields>(
+    tableIdOrName: string,
+    records: Array<UpdateRecordInput<TFields> | UpsertRecordInput<TFields>>,
     options?: UpdateRecordsOptions,
   ): Promise<UpdateRecordsResult<TFields>> {
     if (!records.length) {
       return { records: [] }
     }
+    if (!options?.performUpsert) {
+      const recordWithoutId = records.find(record => !record.id)
+      if (recordWithoutId) {
+        throw new Error(
+          'AirtableRecordsClient.updateRecords: record id is required unless performUpsert is provided',
+        )
+      }
+    }
+    else {
+      validatePerformUpsertRecords(records, options.performUpsert.fieldsToMergeOn)
+    }
 
     const allRecords: AirtableRecord<TFields>[] = []
-    const createdViaUpsert: AirtableRecord<TFields>[] = []
-    const updatedViaUpsert: AirtableRecord<TFields>[] = []
+    const createdViaUpsert: string[] = []
+    const updatedViaUpsert: string[] = []
+    const affectedRecordIds = new Set<string>()
     const query = this.core.buildReturnFieldsQuery(options?.returnFieldsByFieldId)
 
     for (let i = 0; i < records.length; i += MAX_RECORDS_PER_BATCH) {
@@ -417,12 +452,15 @@ export class AirtableRecordsClient<
 
       if (resp.records) {
         allRecords.push(...resp.records)
+        addRecordIds(affectedRecordIds, resp.records.map(record => record.id))
       }
       if (resp.updatedRecords) {
         updatedViaUpsert.push(...resp.updatedRecords)
+        addRecordIds(affectedRecordIds, resp.updatedRecords)
       }
       if (resp.createdRecords) {
         createdViaUpsert.push(...resp.createdRecords)
+        addRecordIds(affectedRecordIds, resp.createdRecords)
       }
     }
 
@@ -434,7 +472,11 @@ export class AirtableRecordsClient<
       result.updatedRecords = updatedViaUpsert
     }
 
-    const recordIds = records.map(r => r.id)
+    addRecordIds(
+      affectedRecordIds,
+      records.map(r => r.id),
+    )
+    const recordIds = Array.from(affectedRecordIds)
 
     await Promise.all([
       this.invalidateTable(tableIdOrName),
@@ -586,6 +628,36 @@ export class AirtableRecordsClient<
   // ---------------------------------------------------------------------------
   // Internal cache invalidation helpers
   // ---------------------------------------------------------------------------
+
+  private buildListRecordsRequest(
+    tableIdOrName: string,
+    params: ListRecordsParams | undefined,
+    getUrl: URL,
+  ): { url: URL, init: RequestInit & { retryNetworkErrors?: boolean } } {
+    if (getUrl.toString().length <= MAX_LIST_RECORDS_GET_URL_LENGTH) {
+      return { url: getUrl, init: { method: 'GET' } }
+    }
+
+    const query = new URLSearchParams()
+    if (params?.timeZone) {
+      query.set('timeZone', params.timeZone)
+    }
+    if (params?.userLocale) {
+      query.set('userLocale', params.userLocale)
+    }
+
+    const url = this.core.buildTableUrl(tableIdOrName, 'listRecords', query)
+    const body = buildListRecordsPostBody(params)
+
+    return {
+      url,
+      init: {
+        method: 'POST',
+        body: JSON.stringify(body),
+        retryNetworkErrors: true,
+      },
+    }
+  }
 
   /**
    * Invalidates all cached **list-style** results for a single table.
@@ -882,5 +954,55 @@ export class AirtableRecordsClient<
     for (const rec of result.records) {
       await this.transformAttachmentsInRecord(tableIdOrName, rec)
     }
+  }
+}
+
+function buildListRecordsPostBody(
+  params: ListRecordsParams | undefined,
+): Record<string, unknown> {
+  if (!params) {
+    return {}
+  }
+
+  const { timeZone: _timeZone, userLocale: _userLocale, ...bodyParams } = params
+  return Object.fromEntries(
+    Object.entries(bodyParams).filter(([, value]) => value !== undefined),
+  )
+}
+
+function addRecordIds(
+  target: Set<string>,
+  ids: Iterable<string | undefined>,
+): void {
+  for (const id of ids) {
+    if (id) {
+      target.add(id)
+    }
+  }
+}
+
+function validatePerformUpsertRecords<TFields>(
+  records: Array<UpdateRecordInput<TFields> | UpsertRecordInput<TFields>>,
+  fieldsToMergeOn: string[],
+): void {
+  if (fieldsToMergeOn.length < 1 || fieldsToMergeOn.length > 3) {
+    throw new Error(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn must contain between 1 and 3 fields',
+    )
+  }
+
+  const idLessRecord = records.find((record) => {
+    if (record.id) {
+      return false
+    }
+
+    const fields = record.fields as Record<string, unknown>
+    return fieldsToMergeOn.some(field => !(field in fields))
+  })
+
+  if (idLessRecord) {
+    throw new Error(
+      'AirtableRecordsClient.updateRecords: id-less upsert records must include every field in performUpsert.fieldsToMergeOn',
+    )
   }
 }
