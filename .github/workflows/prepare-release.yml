@@ -111,7 +111,7 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           echo "Previous tag: $PREV_TAG"
 
-      # 3) generate release notes via GitHub API.
+      # 3) generate release notes via GitHub API (respects .github/release.yml)
       - name: Generate release notes (GitHub)
         id: notes
         uses: actions/github-script@v7
