@@ -39,9 +39,8 @@ bun add ts-airtable
 deno add npm:ts-airtable
 ```
 
-> **Runtime:** Node 18+ (with built-in `fetch`) is recommended.
->
-> On Node < 18, pass your own `fetch` (e.g. `undici`, `node-fetch`) in options.
+> **Runtime:** Node 18+ is required. The client uses the standard `fetch` API
+> available in modern Node, Web, and edge runtimes.
 
 ## Quick start (Airtable.js-style façade)
 
@@ -57,8 +56,10 @@ interface Task {
 
 Airtable.configure({
   apiKey: process.env.AIRTABLE_API_KEY!,
+  // apiVersion?: '0.4.0' // optional X-Airtable-API-Version header
   // endpointUrl?: 'https://api.airtable.com'
   // fetch?: typeof fetch
+  // noRetryIfRateLimited?: boolean
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
@@ -133,8 +134,10 @@ interface Task {
 const client = new AirtableClient<Task>({
   apiKey: process.env.AIRTABLE_API_KEY!,
   baseId: process.env.AIRTABLE_BASE_ID!,
+  // apiVersion?: '0.4.0' // optional X-Airtable-API-Version header
   // endpointUrl?: string
   // fetch?: typeof fetch
+  // noRetryIfRateLimited?: boolean
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
@@ -152,6 +155,22 @@ const webhooks = await client.webhooks.listWebhooks()
 - `client.records` – list / get / create / update / delete / upsert
 - `client.metadata` – bases, base schema, table & view metadata
 - `client.webhooks` – create / list / refresh / delete + payload listing
+
+### Request robustness
+
+- `listRecords` uses Airtable's normal GET endpoint for short requests and
+  automatically falls back to `POST /listRecords` when the generated GET URL
+  would exceed Airtable's documented URL length limit.
+- Retryable HTTP statuses default to `[429, 500, 502, 503, 504]`; 429 responses
+  are retried by default and `Retry-After` is respected when Airtable sends it.
+- Set `noRetryIfRateLimited: true` if you want 429 responses to surface
+  immediately instead of being retried.
+- Transient network errors are retried with the same retry budget for GET/HEAD
+  requests and the read-only `POST /listRecords` fallback; mutation requests
+  are not retried after a network failure to avoid duplicating non-idempotent
+  Airtable writes. `AbortError` is never retried.
+- The HTTP path always uses Airtable's v0 API. `apiVersion`, when provided, is
+  sent as the `X-Airtable-API-Version` header for official-client compatibility.
 
 ## Optional record caching (overview)
 

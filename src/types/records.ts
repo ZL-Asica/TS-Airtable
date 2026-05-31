@@ -219,7 +219,7 @@ export interface CreateRecordInput<TFields> {
   /**
    * Fields to set on the new record.
    */
-  fields: TFields
+  fields: Partial<TFields>
 }
 
 /**
@@ -278,6 +278,27 @@ export interface UpdateRecordInput<TFields> {
 }
 
 /**
+ * Input shape for upsert operations.
+ *
+ * Airtable can create or update records using `performUpsert.fieldsToMergeOn`,
+ * so an `id` is optional when that option is provided.
+ *
+ * @typeParam TFields - Shape of the `fields` object to upsert.
+ */
+export interface UpsertRecordInput<TFields> {
+  /**
+   * Optional record ID. When omitted, Airtable uses `fieldsToMergeOn`
+   * to decide whether to create or update a record.
+   */
+  id?: string
+
+  /**
+   * Partial fields to create/update.
+   */
+  fields: Partial<TFields>
+}
+
+/**
  * Upsert configuration used with `performUpsert`.
  *
  * This tells Airtable which fields should be considered as "external keys"
@@ -328,16 +349,16 @@ export interface UpdateRecordsResult<TFields> {
   records: AirtableRecord<TFields>[]
 
   /**
-   * Subset of `records` that were updated during an upsert operation.
+   * Record IDs that were updated during an upsert operation.
    * Only present when `performUpsert` is used.
    */
-  updatedRecords?: AirtableRecord<TFields>[]
+  updatedRecords?: string[]
 
   /**
-   * Subset of `records` that were created during an upsert operation.
+   * Record IDs that were created during an upsert operation.
    * Only present when `performUpsert` is used.
    */
-  createdRecords?: AirtableRecord<TFields>[]
+  createdRecords?: string[]
 }
 
 /**

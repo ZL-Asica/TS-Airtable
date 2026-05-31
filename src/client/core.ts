@@ -13,6 +13,17 @@ import { AirtableError } from '@/errors'
  * testing against a proxy or a mock server.
  */
 export const DEFAULT_ENDPOINT_URL = 'https://api.airtable.com'
+const DEFAULT_API_PATH_VERSION = 'v0'
+
+interface AirtableRequestInit extends RequestInit {
+  /**
+   * Retry transient network failures for a request that is safe to replay even
+   * though its HTTP method is not GET/HEAD.
+   *
+   * This is used for Airtable's POST /listRecords read endpoint only.
+   */
+  retryNetworkErrors?: boolean
+}
 
 /**
  * Maximum number of records that can be created/updated/deleted in one batch,
@@ -24,6 +35,12 @@ export const DEFAULT_ENDPOINT_URL = 'https://api.airtable.com'
 export const MAX_RECORDS_PER_BATCH = 10
 
 /**
+ * Airtable recommends using POST /listRecords before a GET request URL
+ * reaches the Web API's 16,000 character URL limit.
+ */
+export const MAX_LIST_RECORDS_GET_URL_LENGTH = 16_000
+
+/**
  * Shared low-level HTTP client used by all higher-level Airtable clients.
  *
  * This class is not meant to be used directly by consumers; instead, use
@@ -32,7 +49,7 @@ export const MAX_RECORDS_PER_BATCH = 10
  */
 export class AirtableCoreClient {
   readonly apiKey: string
-  readonly apiVersion: string
+  readonly apiVersion?: string
   readonly baseId: string
   readonly endpointUrl: string
   readonly fetchImpl: typeof fetch
@@ -41,6 +58,7 @@ export class AirtableCoreClient {
   readonly maxRetries: number
   readonly retryInitialDelayMs: number
   readonly retryOnStatuses: number[]
+  private readonly apiPathVersion: string
 
   /**
    * Construct a new low-level Airtable client.
@@ -54,7 +72,8 @@ export class AirtableCoreClient {
     }
 
     this.apiKey = options.apiKey
-    this.apiVersion = options.apiVersion ?? 'v0'
+    this.apiVersion = options.apiVersion
+    this.apiPathVersion = DEFAULT_API_PATH_VERSION
     this.baseId = options.baseId
     this.endpointUrl = options.endpointUrl ?? DEFAULT_ENDPOINT_URL
 
@@ -70,7 +89,7 @@ export class AirtableCoreClient {
 
     this.fetchImpl = options.fetch ?? (globalFetch as typeof fetch)
     this.customHeaders = options.customHeaders
-    this.noRetryIfRateLimited = options.noRetryIfRateLimited ?? true
+    this.noRetryIfRateLimited = options.noRetryIfRateLimited ?? false
     this.maxRetries = options.maxRetries ?? 5
     this.retryInitialDelayMs = options.retryInitialDelayMs ?? 500
     this.retryOnStatuses = options.retryOnStatuses ?? [429, 500, 502, 503, 504]
@@ -95,7 +114,7 @@ export class AirtableCoreClient {
     const encodedTable = encodeURIComponent(tableIdOrName)
     const encodedRecord = recordId ? `/${encodeURIComponent(recordId)}` : ''
     const url = new URL(
-      `/${this.apiVersion}/${this.baseId}/${encodedTable}${encodedRecord}`,
+      `/${this.apiPathVersion}/${this.baseId}/${encodedTable}${encodedRecord}`,
       this.endpointUrl,
     )
 
@@ -113,7 +132,7 @@ export class AirtableCoreClient {
    * @param query - Optional query string parameters.
    */
   buildMetaUrl(path: string, query?: URLSearchParams): URL {
-    const url = new URL(`/${this.apiVersion}/meta${path}`, this.endpointUrl)
+    const url = new URL(`/${this.apiPathVersion}/meta${path}`, this.endpointUrl)
 
     if (query && Array.from(query.keys()).length > 0) {
       url.search = query.toString()
@@ -131,7 +150,7 @@ export class AirtableCoreClient {
   buildBaseUrl(path: string, query?: URLSearchParams): URL {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`
     const url = new URL(
-      `/${this.apiVersion}/bases/${this.baseId}${normalizedPath}`,
+      `/${this.apiPathVersion}/bases/${this.baseId}${normalizedPath}`,
       this.endpointUrl,
     )
 
@@ -243,7 +262,8 @@ export class AirtableCoreClient {
    * - Retry with exponential backoff
    * - Error wrapping into `AirtableError`
    */
-  async requestJson<T>(url: URL, init: RequestInit): Promise<T> {
+  async requestJson<T>(url: URL, init: AirtableRequestInit): Promise<T> {
+    const { retryNetworkErrors, ...fetchInit } = init
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
       ...(this.apiVersion
@@ -259,25 +279,47 @@ export class AirtableCoreClient {
     }
 
     // 2) per-request headers (may override global headers)
-    if (init.headers) {
-    // Handle as Record<string,string>
-      const h = init.headers as Record<string, string>
-      for (const [key, value] of Object.entries(h)) {
-        headers[key] = value
+    if (fetchInit.headers) {
+      for (const [key, value] of normalizeHeaders(fetchInit.headers)) {
+        setHeader(headers, key, value)
       }
     }
 
-    if (init.method && init.method !== 'GET' && init.method !== 'HEAD') {
+    const method = fetchInit.method?.toUpperCase()
+    if (
+      method
+      && method !== 'GET'
+      && method !== 'HEAD'
+      && !hasHeader(headers, 'Content-Type')
+    ) {
       headers['Content-Type'] ??= 'application/json'
     }
 
     let attempt = 0
 
     while (true) {
-      const response = await this.fetchImpl(url.toString(), {
-        ...init,
-        headers,
-      })
+      let response: Response
+
+      try {
+        response = await this.fetchImpl(url.toString(), {
+          ...fetchInit,
+          headers,
+        })
+      }
+      catch (err) {
+        if (!this.shouldRetryNetworkError(
+          err,
+          attempt,
+          fetchInit.method,
+          retryNetworkErrors,
+        )) {
+          throw err
+        }
+
+        await this.sleep(this.getRetryDelayMs(undefined, attempt))
+        attempt += 1
+        continue
+      }
 
       if (!this.shouldRetry(response.status, attempt)) {
         return this.handleResponse<T>(response)
@@ -302,8 +344,10 @@ export class AirtableCoreClient {
 
     const contentType = response.headers.get('Content-Type') ?? ''
     const text = await response.text()
-    const isJson = contentType.includes('application/json')
-    const data = isJson && text ? (JSON.parse(text) as unknown) : (text as unknown)
+    const isJson = contentType.toLowerCase().includes('application/json')
+    const data = isJson
+      ? parseJsonResponseBody(text, response.ok)
+      : (text as unknown)
 
     if (response.ok) {
       return data as T
@@ -329,6 +373,24 @@ export class AirtableCoreClient {
     return this.retryOnStatuses.includes(status)
   }
 
+  private shouldRetryNetworkError(
+    err: unknown,
+    attempt: number,
+    method?: string,
+    retryNetworkErrors = false,
+  ): boolean {
+    if (attempt >= this.maxRetries) {
+      return false
+    }
+    if (isAbortError(err)) {
+      return false
+    }
+    if (!retryNetworkErrors && !isNetworkRetryMethod(method)) {
+      return false
+    }
+    return true
+  }
+
   /**
    * Compute delay before the next retry attempt.
    *
@@ -337,8 +399,8 @@ export class AirtableCoreClient {
    *
    * @internal
    */
-  private getRetryDelayMs(response: Response, attempt: number): number {
-    const retryAfter = response.headers.get('Retry-After')
+  private getRetryDelayMs(response: Response | undefined, attempt: number): number {
+    const retryAfter = response?.headers.get('Retry-After')
     if (retryAfter) {
       const seconds = Number(retryAfter)
       if (!Number.isNaN(seconds) && seconds > 0) {
@@ -359,4 +421,96 @@ export class AirtableCoreClient {
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
+}
+
+function normalizeHeaders(headers: HeadersInit): Array<[string, string]> {
+  if (Array.isArray(headers)) {
+    return headers.map(([key, value]) => [key, value])
+  }
+
+  if (hasHeaderForEach(headers)) {
+    const entries: Array<[string, string]> = []
+    headers.forEach((value, key) => entries.push([key, String(value)]))
+    return entries
+  }
+
+  if (isHeaderEntryIterable(headers)) {
+    return Array.from(headers, ([key, value]) => [key, String(value)])
+  }
+
+  return Object.entries(headers).map(([key, value]) => [key, String(value)])
+}
+
+function hasHeaderForEach(headers: unknown): headers is {
+  forEach: (callback: (value: string, key: string) => void) => void
+} {
+  return (
+    typeof headers === 'object'
+    && headers !== null
+    && 'forEach' in headers
+    && typeof headers.forEach === 'function'
+  )
+}
+
+function isHeaderEntryIterable(
+  headers: unknown,
+): headers is Iterable<readonly [string, unknown]> {
+  return (
+    typeof headers === 'object'
+    && headers !== null
+    && Symbol.iterator in headers
+    && typeof headers[Symbol.iterator] === 'function'
+  )
+}
+
+function hasHeader(headers: Record<string, string>, key: string): boolean {
+  const normalizedKey = key.toLowerCase()
+  return Object.keys(headers).some(header => header.toLowerCase() === normalizedKey)
+}
+
+function setHeader(
+  headers: Record<string, string>,
+  key: string,
+  value: string,
+): void {
+  const existingKey = Object.keys(headers).find(
+    header => header.toLowerCase() === key.toLowerCase(),
+  )
+
+  if (existingKey) {
+    headers[existingKey] = value
+    return
+  }
+
+  headers[key] = value
+}
+
+function parseJsonResponseBody(text: string, isOk: boolean): unknown {
+  if (!text) {
+    return undefined
+  }
+
+  try {
+    return JSON.parse(text) as unknown
+  }
+  catch (err) {
+    if (!isOk) {
+      return undefined
+    }
+    throw err
+  }
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    typeof err === 'object'
+    && err !== null
+    && 'name' in err
+    && err.name === 'AbortError'
+  )
+}
+
+function isNetworkRetryMethod(method?: string): boolean {
+  const normalizedMethod = method?.toUpperCase() ?? 'GET'
+  return normalizedMethod === 'GET' || normalizedMethod === 'HEAD'
 }

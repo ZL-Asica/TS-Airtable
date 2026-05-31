@@ -1,5 +1,11 @@
-import type { AirtableFieldSet, DeleteRecordsResult } from '@/types'
-import { describe, expect, it, vi } from 'vitest'
+import type {
+  AirtableFieldSet,
+  CreateRecordInput,
+  DeleteRecordsResult,
+  UpsertRecordInput,
+} from '@/types'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { MAX_LIST_RECORDS_GET_URL_LENGTH } from '@/client/core'
 import { AirtableRecordsClient } from '@/client/records-client'
 import { listKey, recordKey, recordPrefix, tablePrefix } from '@/utils'
 
@@ -64,6 +70,141 @@ describe('airtableRecordsClient', () => {
     expect(result.records).toHaveLength(1)
     expect(result.records[0].id).toBe('rec1')
     expect(result.records[0].fields.Name).toBe('Task 1')
+  })
+
+  it('listRecords uses POST /listRecords when the GET URL exceeds Airtable limits', async () => {
+    const core = makeCore()
+    core.buildTableUrl.mockImplementation((
+      tableIdOrName: string,
+      recordId?: string,
+      query?: URLSearchParams,
+    ) => {
+      const suffix = recordId ? `/${recordId}` : ''
+      const url = new URL(`https://example.com/${tableIdOrName}${suffix}`)
+      if (query && Array.from(query.keys()).length > 0) {
+        url.search = query.toString()
+      }
+      return url
+    })
+    core.buildListQuery.mockImplementation((params?: any) => {
+      if (!params) {
+        return undefined
+      }
+
+      const search = new URLSearchParams()
+      if (params.filterByFormula) {
+        search.set('filterByFormula', params.filterByFormula)
+      }
+      if (params.maxRecords != null) {
+        search.set('maxRecords', String(params.maxRecords))
+      }
+      if (params.pageSize != null) {
+        search.set('pageSize', String(params.pageSize))
+      }
+      if (params.offset) {
+        search.set('offset', params.offset)
+      }
+      if (params.view) {
+        search.set('view', params.view)
+      }
+      if (params.cellFormat) {
+        search.set('cellFormat', params.cellFormat)
+      }
+      if (params.timeZone) {
+        search.set('timeZone', params.timeZone)
+      }
+      if (params.userLocale) {
+        search.set('userLocale', params.userLocale)
+      }
+      if (params.returnFieldsByFieldId !== undefined) {
+        search.set('returnFieldsByFieldId', String(params.returnFieldsByFieldId))
+      }
+      if (params.fields) {
+        for (const field of params.fields) {
+          search.append('fields[]', field)
+        }
+      }
+      if (params.sort) {
+        params.sort.forEach((spec: any, index: number) => {
+          search.append(`sort[${index}][field]`, spec.field)
+          if (spec.direction) {
+            search.append(`sort[${index}][direction]`, spec.direction)
+          }
+        })
+      }
+      return search
+    })
+
+    const store = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      deleteByPrefix: vi.fn(),
+    }
+
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core, { store })
+    const params = {
+      filterByFormula: `FIND("${'x'.repeat(16_500)}", {Notes})`,
+      maxRecords: 250,
+      pageSize: 50,
+      offset: 'itrNext',
+      view: 'Grid view',
+      fields: ['Name', 'Status'],
+      sort: [{ field: 'Name', direction: 'asc' as const }],
+      cellFormat: 'string' as const,
+      timeZone: 'UTC',
+      userLocale: 'en',
+      returnFieldsByFieldId: true,
+    }
+
+    await client.listRecords('Tasks', params)
+
+    const [url, init] = core.requestJson.mock.calls[0] as [URL, RequestInit]
+    expect(url.pathname).toBe('/Tasks/listRecords')
+    expect(url.searchParams.get('timeZone')).toBe('UTC')
+    expect(url.searchParams.get('userLocale')).toBe('en')
+    expect(init.method).toBe('POST')
+    expect((init as { retryNetworkErrors?: boolean }).retryNetworkErrors).toBe(true)
+
+    const body = JSON.parse(init.body as string) as Record<string, unknown>
+    expect(body.filterByFormula).toBe(params.filterByFormula)
+    expect(body.maxRecords).toBe(250)
+    expect(body.pageSize).toBe(50)
+    expect(body.offset).toBe('itrNext')
+    expect(body.view).toBe('Grid view')
+    expect(body.fields).toEqual(['Name', 'Status'])
+    expect(body.sort).toEqual([{ field: 'Name', direction: 'asc' }])
+    expect(body.cellFormat).toBe('string')
+    expect(body.returnFieldsByFieldId).toBe(true)
+    expect(body.timeZone).toBeUndefined()
+    expect(body.userLocale).toBeUndefined()
+    expect(store.set).toHaveBeenCalledWith(
+      listKey(core.baseId, 'Tasks', params),
+      expect.anything(),
+      undefined,
+    )
+  })
+
+  it('listRecords keeps GET when the generated URL is exactly at the Airtable limit', async () => {
+    const core = makeCore()
+    const prefix = 'https://example.com/'
+    core.buildTableUrl.mockReturnValueOnce(
+      new URL(`${prefix}${'x'.repeat(MAX_LIST_RECORDS_GET_URL_LENGTH - prefix.length)}`),
+    )
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    await client.listRecords('Tasks', { view: 'Grid view' })
+
+    const [url, init] = core.requestJson.mock.calls[0] as [URL, RequestInit]
+    expect(url.toString()).toHaveLength(MAX_LIST_RECORDS_GET_URL_LENGTH)
+    expect(init).toEqual({ method: 'GET' })
   })
 
   it('listAllRecords concatenates pages until offset is exhausted', async () => {
@@ -275,8 +416,8 @@ describe('airtableRecordsClient', () => {
     const core = makeCore()
     core.requestJson.mockResolvedValue({
       // No records fields, test resp.records falsy branch
-      createdRecords: [{ id: 'recCreated', fields: { Name: 'New' } }],
-      updatedRecords: [{ id: 'recUpdated', fields: { Name: 'Old' } }],
+      createdRecords: ['recCreated'],
+      updatedRecords: ['recUpdated'],
     })
 
     const client = new AirtableRecordsClient<TaskFields>(core)
@@ -292,8 +433,120 @@ describe('airtableRecordsClient', () => {
 
     expect(core.buildReturnFieldsQuery).toHaveBeenCalledWith(false)
     expect(result.records).toEqual([]) // Because resp.records is not present
-    expect(result.createdRecords?.[0].id).toBe('recCreated')
-    expect(result.updatedRecords?.[0].id).toBe('recUpdated')
+    expect(result.createdRecords?.[0]).toBe('recCreated')
+    expect(result.updatedRecords?.[0]).toBe('recUpdated')
+  })
+
+  it('updateRecords accepts upsert inputs without ids and invalidates response ids', async () => {
+    const core = makeCore()
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'recUpdated', fields: { Name: 'Existing' } }],
+      createdRecords: ['recCreated'],
+      updatedRecords: ['recUpdated'],
+    })
+
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const client = new AirtableRecordsClient<TaskFields>(core, { store })
+    const result = await client.updateRecords(
+      'Tasks',
+      [{ fields: { Name: 'External task' } }],
+      { performUpsert: { fieldsToMergeOn: ['Name'] } },
+    )
+
+    expect(result.createdRecords).toEqual(['recCreated'])
+    expect(result.updatedRecords).toEqual(['recUpdated'])
+
+    const [, init] = core.requestJson.mock.calls[0] as [URL, RequestInit]
+    const body = JSON.parse(init.body as string) as {
+      records: Array<{ id?: string, fields: TaskFields }>
+    }
+    expect(body.records[0].id).toBeUndefined()
+
+    const prefixes = store.deleteByPrefix.mock.calls.map(args => args[0])
+    expect(prefixes).toContain(recordPrefix(core.baseId, 'Tasks', 'recCreated'))
+    expect(prefixes).toContain(recordPrefix(core.baseId, 'Tasks', 'recUpdated'))
+    expect(prefixes.some(prefix => String(prefix).includes('undefined'))).toBe(false)
+  })
+
+  it('updateRecords rejects records without ids when performUpsert is omitted', async () => {
+    const core = makeCore()
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        // @ts-expect-error id-less updates require performUpsert
+        [{ fields: { Name: 'Missing id' } }],
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: record id is required unless performUpsert is provided',
+    )
+    expect(core.requestJson).not.toHaveBeenCalled()
+  })
+
+  it('updateRecords validates performUpsert merge fields before sending a request', async () => {
+    const core = makeCore()
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Name: 'Missing merge field' } }],
+        { performUpsert: { fieldsToMergeOn: [] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn must contain between 1 and 3 fields',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Name: 'Too many merge fields' } }],
+        { performUpsert: { fieldsToMergeOn: ['A', 'B', 'C', 'D'] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn must contain between 1 and 3 fields',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Status: 'Todo' } }],
+        { performUpsert: { fieldsToMergeOn: ['Name'] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: id-less upsert records must include every field in performUpsert.fieldsToMergeOn',
+    )
+
+    expect(core.requestJson).not.toHaveBeenCalled()
+  })
+
+  it('supports partial create fields, id-less upsert inputs, and broad field values', () => {
+    interface FlexibleFields extends AirtableFieldSet {
+      Name: string
+      Count?: number
+    }
+
+    const createInput: CreateRecordInput<FlexibleFields> = {
+      fields: { Count: 1 },
+    }
+    const upsertInput: UpsertRecordInput<FlexibleFields> = {
+      fields: {},
+    }
+    const fieldSet: AirtableFieldSet = {
+      Empty: null,
+      Barcode: { type: 'upc', text: '123456789' },
+      Lookup: [1, 'two', null, { nested: true }],
+    }
+
+    expectTypeOf(createInput.fields).toMatchTypeOf<Partial<FlexibleFields>>()
+    expectTypeOf(upsertInput.id).toEqualTypeOf<string | undefined>()
+    expect(fieldSet.Empty).toBeNull()
   })
 
   it('updateRecord builds URL with recordId and body with fields and options', async () => {

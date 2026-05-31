@@ -101,6 +101,25 @@ export interface AirtableCollaborator {
 }
 
 /**
+ * Broad runtime value shape for Airtable cells.
+ *
+ * Airtable can return primitives, `null`, arrays from lookup/rollup fields,
+ * attachment/collaborator objects, and other structured field-specific
+ * objects such as barcode values.
+ */
+export type AirtableFieldValue
+  = | undefined
+    | null
+    | string
+    | number
+    | boolean
+    | AirtableAttachment
+    | AirtableCollaborator
+    | AirtableThumbnail
+    | Record<string, unknown>
+    | readonly unknown[]
+
+/**
  * Generic, loosely-typed field set compatible with the official
  * `airtable` package's `FieldSet` type.
  *
@@ -113,10 +132,9 @@ export interface AirtableCollaborator {
  *   - `string`  – text, single line, rich text, dates (as ISO strings), etc.
  *   - `number`  – numeric fields
  *   - `boolean` – checkbox fields
- * - a single collaborator (`AirtableCollaborator`)
- * - arrays of collaborators (`readonly AirtableCollaborator[]`)
- * - arrays of strings (e.g. linked record IDs, multi-select values)
- * - arrays of attachments (`readonly AirtableAttachment[]`)
+ * - null / empty-ish values
+ * - structured field-specific objects
+ * - arrays from linked records, multi-selects, attachments, lookups and rollups
  *
  * This type is mainly useful as a **base** or fallback shape when
  * migrating from the official `airtable` client or when you don't want
@@ -152,13 +170,5 @@ export interface AirtableFieldSet {
    * intentionally broad to cover the common Airtable cell types. For a
    * stricter schema, create your own interface that extends this one.
    */
-  [key: string]:
-    | undefined
-    | string
-    | number
-    | boolean
-    | AirtableCollaborator
-    | readonly AirtableCollaborator[]
-    | readonly string[]
-    | readonly AirtableAttachment[]
+  [key: string]: AirtableFieldValue
 }

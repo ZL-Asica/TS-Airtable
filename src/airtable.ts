@@ -103,8 +103,12 @@ function createTable<TFields extends AirtableFieldSet>(
     create: (records, options) =>
       client.records.createRecords<TFields>(tableIdOrName, records, options),
 
-    update: (records, options) =>
-      client.records.updateRecords<TFields>(tableIdOrName, records, options),
+    update: ((records, options) =>
+      client.records.updateRecords(
+        tableIdOrName,
+        records as never,
+        options as never,
+      )) as AirtableTable<TFields>['update'],
 
     updateRecord: (recordId, fields, options) =>
       client.records.updateRecord<TFields>(tableIdOrName, recordId, fields, options),
@@ -205,7 +209,7 @@ class AirtableGlobal {
    *
    * @param config - Global configuration minus `baseId`.
    *   - `apiKey` (required before calling `base`)
-   *   - `apiVersion` (optional) – override Airtable API version (e.g. "v0")
+   *   - `apiVersion` (optional) – send `X-Airtable-API-Version`
    *   - `endpointUrl` (optional)
    *   - `fetch` (optional)
    *   - `noRetryIfRateLimited` (optional)
