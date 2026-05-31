@@ -127,8 +127,10 @@ interface Task {
 const client = new AirtableClient<Task>({
   apiKey: process.env.AIRTABLE_API_KEY!,
   baseId: process.env.AIRTABLE_BASE_ID!,
+  // apiVersion?: '0.4.0' // optional X-Airtable-API-Version header
   // endpointUrl?: string
   // fetch?: typeof fetch
+  // noRetryIfRateLimited?: boolean
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
@@ -158,6 +160,20 @@ console.log(webhooks.webhooks.length)
 - `client.records` – list / get / create / update / delete / upsert
 - `client.metadata` – bases, base schema, table & view metadata
 - `client.webhooks` – create / list / refresh / delete, plus payload listing
+
+## Request robustness
+
+- `listRecords` uses Airtable's regular GET endpoint while the generated URL is
+  within Airtable's documented URL length limit. Longer requests automatically
+  use the read-only `POST /listRecords` fallback.
+- Retryable HTTP statuses default to `[429, 500, 502, 503, 504]`. Rate limits
+  are retried by default, and `Retry-After` is respected when Airtable sends it.
+- Transient network errors are retried for GET/HEAD requests and the
+  `POST /listRecords` fallback. Mutation requests are not replayed after a
+  network failure to avoid duplicate writes.
+- `apiVersion`, when provided, is sent as `X-Airtable-API-Version` for
+  compatibility with the official client. Request paths continue to use
+  Airtable's v0 HTTP API.
 
 ## Optional caching (quick overview)
 
