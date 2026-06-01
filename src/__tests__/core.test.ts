@@ -523,6 +523,26 @@ describe('airtableCoreClient', () => {
     })
   })
 
+  it('handleResponse preserves Airtable string error payloads', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = jsonResponse(422, { error: 'INVALID_VALUE_FOR_COLUMN' })
+
+    await expect(
+      // @ts-expect-error testing private method
+      core.handleResponse(resp),
+    ).rejects.toMatchObject({
+      status: 422,
+      type: 'INVALID_VALUE_FOR_COLUMN',
+      message: 'INVALID_VALUE_FOR_COLUMN',
+      payload: { error: 'INVALID_VALUE_FOR_COLUMN' },
+    })
+  })
+
   it('handleResponse throws AirtableError without payload for non-2xx non-JSON', async () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
@@ -539,6 +559,42 @@ describe('airtableCoreClient', () => {
       // @ts-expect-error testing private method
       core.handleResponse(resp),
     ).rejects.toBeInstanceOf(AirtableError)
+  })
+
+  it('handleResponse parses JSON-shaped error bodies even without JSON Content-Type', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = new Response(
+      JSON.stringify({
+        error: {
+          type: 'INVALID_REQUEST_UNKNOWN',
+          message: 'Could not parse request body',
+        },
+      }),
+      {
+        status: 400,
+        headers: new Headers({ 'Content-Type': 'text/plain' }),
+      },
+    )
+
+    await expect(
+      // @ts-expect-error testing private method
+      core.handleResponse(resp),
+    ).rejects.toMatchObject({
+      status: 400,
+      type: 'INVALID_REQUEST_UNKNOWN',
+      message: 'Could not parse request body',
+      payload: {
+        error: {
+          type: 'INVALID_REQUEST_UNKNOWN',
+          message: 'Could not parse request body',
+        },
+      },
+    })
   })
 
   it('handleResponse wraps invalid non-2xx JSON as AirtableError', async () => {
@@ -773,6 +829,8 @@ describe('airtableCoreClient', () => {
       retryInitialDelayMs: 1,
       noRetryIfRateLimited: true,
     })
+    // @ts-expect-error private property
+    core.sleep = vi.fn().mockResolvedValue(undefined)
 
     const url = new URL('https://example.com')
 
@@ -781,6 +839,8 @@ describe('airtableCoreClient', () => {
     )
     // Should only call fetch once (no retries on 429)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    // @ts-expect-error private property
+    expect(core.sleep).not.toHaveBeenCalled()
   })
 
   it('requestJson retries network errors and eventually succeeds', async () => {
@@ -961,5 +1021,41 @@ describe('airtableCoreClient', () => {
     expect(headers['X-Global']).toBe('g')
     expect(headers['X-Local']).toBe('l')
     expect(headers['X-Override']).toBe('local')
+  })
+
+  it('requestJson keeps apiVersion and customHeaders out of URL query parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, { ok: true }),
+    )
+
+    const core = new AirtableCoreClient({
+      apiKey: 'secret',
+      baseId: 'base',
+      fetch: fetchMock as any,
+      apiVersion: '0.4.0',
+      customHeaders: {
+        'X-Airtable-Client': 'ts-airtable',
+      },
+    })
+    const query = core.buildListQuery({
+      view: 'Grid view',
+      pageSize: 25,
+    })
+    const url = core.buildTableUrl('Tasks', undefined, query)
+
+    await core.requestJson(url, { method: 'GET' })
+
+    const [calledUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const requestUrl = new URL(calledUrl)
+    const headers = init.headers as Record<string, string>
+
+    expect(requestUrl.searchParams.get('view')).toBe('Grid view')
+    expect(requestUrl.searchParams.get('pageSize')).toBe('25')
+    expect(requestUrl.searchParams.has('apiVersion')).toBe(false)
+    expect(requestUrl.searchParams.has('customHeaders')).toBe(false)
+    expect(requestUrl.searchParams.has('X-Airtable-API-Version')).toBe(false)
+    expect(requestUrl.searchParams.has('X-Airtable-Client')).toBe(false)
+    expect(headers['X-Airtable-API-Version']).toBe('0.4.0')
+    expect(headers['X-Airtable-Client']).toBe('ts-airtable')
   })
 })
