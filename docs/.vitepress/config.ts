@@ -15,6 +15,8 @@ interface DocsVersionEntry {
 }
 
 const docsVersions = versions as DocsVersionEntry[]
+const stableDocsVersion = docsVersions.find(version => version.channel === 'stable')
+const prereleaseDocsVersion = docsVersions.find(version => version.channel === 'prerelease')
 
 const apiSidebar: DefaultTheme.Sidebar = generateSidebar([
   {
@@ -127,26 +129,32 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
       { text: 'Features', link: '/guide/features/' },
       { text: 'API Reference', link: '/api/' },
       {
-        text: 'Versions',
-        items: [
-          { text: `Current v${pkg.version}`, link: '/' },
-          { text: 'Version index', link: '/versions/' },
-          ...docsVersions.map(version => ({
-            text: version.label,
-            link: version.path,
-          })),
-        ],
-      },
-      {
         text: `v${pkg.version}`,
         items: [
           {
-            text: 'Changelog',
-            link: 'https://github.com/ZL-Asica/TS-Airtable/blob/main/CHANGELOG.md',
+            text: 'Documentation',
+            items: [
+              { text: `Current docs (v${pkg.version})`, link: '/' },
+              ...(stableDocsVersion
+                ? [{ text: `${stableDocsVersion.version} stable docs`, link: stableDocsVersion.path }]
+                : []),
+              ...(prereleaseDocsVersion
+                ? [{ text: `${prereleaseDocsVersion.version} prerelease docs`, link: prereleaseDocsVersion.path }]
+                : []),
+            ],
           },
           {
-            text: 'Contributing',
-            link: 'https://github.com/ZL-Asica/TS-Airtable/blob/main/CONTRIBUTING.md',
+            text: 'Project',
+            items: [
+              {
+                text: 'Changelog',
+                link: 'https://github.com/ZL-Asica/TS-Airtable/blob/main/CHANGELOG.md',
+              },
+              {
+                text: 'Contributing',
+                link: 'https://github.com/ZL-Asica/TS-Airtable/blob/main/CONTRIBUTING.md',
+              },
+            ],
           },
         ],
       },
