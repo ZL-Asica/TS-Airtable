@@ -14,10 +14,10 @@
   "homepage": "https://airtable.zla.app",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ZL-Asica/ts-airtable.git"
+    "url": "git+https://github.com/ZL-Asica/TS-Airtable.git"
   },
   "bugs": {
-    "url": "https://github.com/ZL-Asica/ts-airtable/issues"
+    "url": "https://github.com/ZL-Asica/TS-Airtable/issues"
   },
   "keywords": [
     "airtable",
@@ -69,7 +69,6 @@
     "docs:publish:ci": "pnpm run docs && rm -rf docs/api.index.md && pnpm run docs:build",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "release": "pnpm test:ci && pnpm build && pnpm publish --no-git-checks",
     "prepare": "husky || true"
   },
   "devDependencies": {
