@@ -1,11 +1,17 @@
 import type {
   AirtableClientOptions,
   AirtableErrorResponseBody,
+  AirtableObservabilityHooks,
+  AirtableRequestContext,
+  AirtableRequestMethod,
+  AirtableRequestRateLimitEvent,
+  AirtableRequestScheduler,
   CustomHeaders,
   GetRecordParams,
   ListRecordsParams,
 } from '@/types'
 import { AirtableError } from '@/errors'
+import { AirtableRateLimiter } from '@/rate-limiter'
 
 /**
  * Default Airtable API root URL.
@@ -59,6 +65,8 @@ export class AirtableCoreClient {
   readonly retryInitialDelayMs: number
   readonly retryOnStatuses: number[]
   private readonly apiPathVersion: string
+  private readonly observability?: AirtableObservabilityHooks
+  private readonly requestScheduler?: AirtableRequestScheduler
 
   /**
    * Construct a new low-level Airtable client.
@@ -93,6 +101,13 @@ export class AirtableCoreClient {
     this.maxRetries = options.maxRetries ?? 5
     this.retryInitialDelayMs = options.retryInitialDelayMs ?? 500
     this.retryOnStatuses = options.retryOnStatuses ?? [429, 500, 502, 503, 504]
+    this.observability = options.observability
+    if (options.requestScheduler && options.rateLimiter) {
+      throw new Error('AirtableClient: requestScheduler and rateLimiter are mutually exclusive')
+    }
+    this.requestScheduler = options.requestScheduler
+      ?? createRateLimiter(options.rateLimiter, event =>
+        this.emit('onRateLimit', event))
   }
 
   // ---------------------------------------------------------------------------
@@ -285,7 +300,7 @@ export class AirtableCoreClient {
       }
     }
 
-    const method = fetchInit.method?.toUpperCase()
+    const method = normalizeRequestMethod(fetchInit.method)
     if (
       method
       && method !== 'GET'
@@ -296,15 +311,28 @@ export class AirtableCoreClient {
     }
 
     let attempt = 0
+    const requestId = createRequestId()
+    const urlString = url.toString()
 
     while (true) {
       let response: Response
+      const context: AirtableRequestContext = {
+        requestId,
+        baseId: this.baseId,
+        method,
+        url: urlString,
+        attempt,
+      }
+      const startedAt = nowMs()
+
+      this.emit('onRequestStart', context)
 
       try {
-        response = await this.fetchImpl(url.toString(), {
-          ...fetchInit,
-          headers,
-        })
+        response = await this.executeRequestAttempt(context, () =>
+          this.fetchImpl(urlString, {
+            ...fetchInit,
+            headers,
+          }))
       }
       catch (err) {
         if (!this.shouldRetryNetworkError(
@@ -313,22 +341,67 @@ export class AirtableCoreClient {
           fetchInit.method,
           retryNetworkErrors,
         )) {
+          this.emit('onError', {
+            ...context,
+            error: err,
+            durationMs: nowMs() - startedAt,
+          })
           throw err
         }
 
-        await this.sleep(this.getRetryDelayMs(undefined, attempt))
+        const delayMs = this.getRetryDelayMs(undefined, attempt)
+        this.emit('onRetry', {
+          ...context,
+          delayMs,
+          error: err,
+        })
+        await this.sleep(delayMs)
         attempt += 1
         continue
       }
 
+      this.emit('onRequestEnd', {
+        ...context,
+        status: response.status,
+        ok: response.ok,
+        durationMs: nowMs() - startedAt,
+      })
+
       if (!this.shouldRetry(response.status, attempt)) {
-        return this.handleResponse<T>(response)
+        try {
+          return await this.handleResponse<T>(response)
+        }
+        catch (err) {
+          this.emit('onError', {
+            ...context,
+            error: err,
+            durationMs: nowMs() - startedAt,
+            status: response.status,
+          })
+          throw err
+        }
       }
 
       const delayMs = this.getRetryDelayMs(response, attempt)
+      this.emit('onRetry', {
+        ...context,
+        delayMs,
+        status: response.status,
+      })
       await this.sleep(delayMs)
       attempt += 1
     }
+  }
+
+  private executeRequestAttempt<T>(
+    context: AirtableRequestContext,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    if (!this.requestScheduler) {
+      return run()
+    }
+
+    return this.requestScheduler.schedule(run, context)
   }
 
   /**
@@ -420,6 +493,18 @@ export class AirtableCoreClient {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  private emit<TEvent extends keyof AirtableObservabilityHooks>(
+    event: TEvent,
+    payload: Parameters<NonNullable<AirtableObservabilityHooks[TEvent]>>[0],
+  ): void {
+    try {
+      this.observability?.[event]?.(payload as never)
+    }
+    catch {
+      // Observability hooks are best-effort and must not break requests.
+    }
   }
 }
 
@@ -542,4 +627,46 @@ function isAbortError(err: unknown): boolean {
 function isNetworkRetryMethod(method?: string): boolean {
   const normalizedMethod = method?.toUpperCase() ?? 'GET'
   return normalizedMethod === 'GET' || normalizedMethod === 'HEAD'
+}
+
+function normalizeRequestMethod(method?: string): AirtableRequestMethod {
+  return method?.toUpperCase() ?? 'GET'
+}
+
+function createRequestId(): string {
+  if (typeof crypto === 'object' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+}
+
+function nowMs(): number {
+  return typeof performance === 'object' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now()
+}
+
+function createRateLimiter(
+  options: AirtableClientOptions['rateLimiter'],
+  onDelay: (event: AirtableRequestRateLimitEvent) => void,
+): AirtableRequestScheduler | undefined {
+  if (!options)
+    return undefined
+
+  if (options === true) {
+    return new AirtableRateLimiter({ onDelay })
+  }
+
+  return new AirtableRateLimiter({
+    ...options,
+    onDelay: (event) => {
+      try {
+        options.onDelay?.(event)
+      }
+      finally {
+        onDelay(event)
+      }
+    },
+  })
 }

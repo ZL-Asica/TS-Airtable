@@ -10,7 +10,7 @@ Airtable TS is a tiny, fetch-based client for the Airtable Web API, with:
 - Airtable.js-style façade: `Airtable.configure(...)` + `Airtable.base(...)`
 - A low-level `AirtableClient` with records, metadata and webhooks
 - Optional, pluggable in-process **record caching**
-- First-class TypeScript & built-in retry support
+- First-class TypeScript, built-in retry support and production request hooks
 
 ## Installation
 
@@ -48,9 +48,11 @@ Airtable.configure({
   apiKey: process.env.AIRTABLE_API_KEY!,
   // endpointUrl?: 'https://api.airtable.com'
   // fetch?: typeof fetch
+  // rateLimiter?: true | { requestsPerSecond?: number, maxConcurrent?: number }
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
+  // observability?: AirtableObservabilityHooks
 })
 
 // 2. Create a base handle
@@ -130,10 +132,12 @@ const client = new AirtableClient<Task>({
   // apiVersion?: '0.4.0' // optional X-Airtable-API-Version header
   // endpointUrl?: string
   // fetch?: typeof fetch
+  // rateLimiter?: true | { requestsPerSecond?: number, maxConcurrent?: number }
   // noRetryIfRateLimited?: boolean
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
+  // observability?: AirtableObservabilityHooks
 })
 
 // Records API
@@ -178,6 +182,66 @@ console.log(webhooks.webhooks.length)
   Airtable's v0 HTTP API, and compatibility headers are not added to query
   parameters.
 
+### Rate limiting and scheduling
+
+For single-process apps, `rateLimiter: true` enables the built-in
+`AirtableRateLimiter`. Its defaults match Airtable's common per-base rate limit:
+5 request attempts per second and up to 5 concurrent attempts.
+
+```ts
+const client = new AirtableClient<Task>({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  baseId: process.env.AIRTABLE_BASE_ID!,
+  rateLimiter: true,
+})
+```
+
+For shared queues, distributed deployments, circuit breakers or tracing, pass a
+custom `requestScheduler`. The scheduler receives one request context and a
+callback that performs exactly one HTTP attempt.
+
+```ts
+import type { AirtableRequestScheduler } from 'ts-airtable'
+
+const scheduler: AirtableRequestScheduler = {
+  async schedule(run, context) {
+    console.log('Scheduling Airtable request', context.requestId, context.url)
+    return run()
+  },
+}
+
+const client = new AirtableClient<Task>({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  baseId: process.env.AIRTABLE_BASE_ID!,
+  requestScheduler: scheduler,
+})
+```
+
+Use either `rateLimiter` or `requestScheduler`, not both.
+
+### Observability hooks
+
+`observability` hooks let you connect request lifecycle events to logs, metrics,
+or tracing without wrapping `fetch` yourself. Events omit API keys, request
+bodies and request headers. URLs can still contain Airtable query values such as
+formulas, view names, field names, and offsets; redact them before writing to
+shared logs when needed.
+
+```ts
+const client = new AirtableClient<Task>({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  baseId: process.env.AIRTABLE_BASE_ID!,
+  observability: {
+    onRequestEnd: event => console.info('Airtable status', event.status),
+    onRetry: event => console.warn('Retrying Airtable request', event.delayMs),
+    onError: event => console.error('Airtable request failed', event.error),
+  },
+})
+```
+
+Hook errors are swallowed. Logging and metrics code should never turn a working
+Airtable request into a failed one.
+
 ## Optional caching (quick overview)
 
 Record caching for reads (`listRecords`, `listAllRecords`, `iterateRecords`, `getRecord`) is **opt-in**.
@@ -189,7 +253,7 @@ Record caching for reads (`listRecords`, `listAllRecords`, `iterateRecords`, `ge
 
 - A built-in `InMemoryCacheStore` is provided for simple in-process caching.
 
-For a full guide (key strategy, invalidation, custom stores, best practices), see the dedicated [Caching](./caching.md) page.
+For a full guide (key strategy, invalidation, custom stores, best practices), see the dedicated [Caching](./features/caching.md) page.
 
 ## Error handling
 

@@ -21,7 +21,9 @@
 - [x] Support Node, Web, Edge, and even more environments
 - [x] Built-in pluggable **record caching** (with a built-in in-memory store)
 - [x] Optional **attachment URL transformation** hook for re-hosting Airtable attachments (e.g. to S3 / R2 / your CDN)
-- [ ] (WIP) Built-in logging interface to trigger logging when needed
+- [x] Request observability hooks for logs and metrics
+- [x] Built-in per-process request rate limiter and custom scheduler hook
+- [x] Airtable webhook notification signature verification helpers
 
 It’s meant to be boring, predictable glue around Airtable’s HTTP API — no magic.
 
@@ -59,10 +61,12 @@ Airtable.configure({
   // apiVersion?: '0.4.0' // optional X-Airtable-API-Version header
   // endpointUrl?: 'https://api.airtable.com'
   // fetch?: typeof fetch
+  // rateLimiter?: true | { requestsPerSecond?: number, maxConcurrent?: number }
   // noRetryIfRateLimited?: boolean
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
+  // observability?: AirtableObservabilityHooks
 })
 
 const base = Airtable.base<Task>(process.env.AIRTABLE_BASE_ID!)
@@ -137,10 +141,12 @@ const client = new AirtableClient<Task>({
   // apiVersion?: '0.4.0' // optional X-Airtable-API-Version header
   // endpointUrl?: string
   // fetch?: typeof fetch
+  // rateLimiter?: true | { requestsPerSecond?: number, maxConcurrent?: number }
   // noRetryIfRateLimited?: boolean
   // maxRetries?: number
   // retryInitialDelayMs?: number
   // retryOnStatuses?: number[]
+  // observability?: AirtableObservabilityHooks
 })
 
 const page = await client.records.listRecords('Tasks', {
@@ -175,6 +181,43 @@ const webhooks = await client.webhooks.listWebhooks()
   sent as the `X-Airtable-API-Version` header for official-client compatibility.
   `apiVersion` and `customHeaders` are never serialized into Airtable query
   parameters.
+- Set `rateLimiter: true` to use the built-in process-local limiter for
+  Airtable's common 5 requests/second per-base limit. For distributed queues or
+  shared throttling, pass a custom `requestScheduler`.
+- Use `observability` hooks to record request metadata, retry events, scheduler
+  delays, and final errors. Events omit headers, bodies, and API keys, but URLs
+  can contain query values such as formulas or view names. Hook failures are
+  swallowed so telemetry cannot break Airtable calls.
+
+```ts
+import { AirtableClient, AirtableRateLimiter } from 'ts-airtable'
+
+const sharedLimiter = new AirtableRateLimiter({
+  requestsPerSecond: 5,
+  maxConcurrent: 5,
+})
+
+const client = new AirtableClient<Task>({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  baseId: process.env.AIRTABLE_BASE_ID!,
+  requestScheduler: sharedLimiter,
+  observability: {
+    onRetry: event => console.warn('Retrying Airtable request', event),
+    onRateLimit: event => console.info('Airtable request delayed', event.delayMs),
+    onError: event => console.error('Airtable request failed', event.error),
+  },
+})
+```
+
+For simple single-process apps, this is enough:
+
+```ts
+const client = new AirtableClient<Task>({
+  apiKey: process.env.AIRTABLE_API_KEY!,
+  baseId: process.env.AIRTABLE_BASE_ID!,
+  rateLimiter: true,
+})
+```
 
 ## Optional record caching (overview)
 
@@ -249,7 +292,30 @@ for attachments (per-process) so that heavy transformations only run once per
 `attachment.id`. For production setups (e.g. Cloudflare KV + R2) see:
 
 - [Caching](https://airtable.zla.app/guide/features/caching)
-- [Cloudflare KV / R2 cache store example](https://airtable.zla.app/guide/examples/custom-cache-store-cloudflare-kv)
+- [Cloudflare KV / R2 cache store example](https://airtable.zla.app/guide/features/custom-cloudflare-kv-cache)
+
+## Webhook signature verification
+
+When Airtable calls your webhook `notificationUrl`, verify
+`X-Airtable-Content-MAC` before trusting the JSON body. Always pass the exact
+raw request body bytes; parsing and re-stringifying JSON changes the signature
+input.
+
+```ts
+import {
+  getAirtableWebhookContentMac,
+  verifyAirtableWebhookNotification,
+} from 'ts-airtable'
+
+const rawBody = await request.text()
+const notification = await verifyAirtableWebhookNotification({
+  body: rawBody,
+  macSecretBase64: process.env.AIRTABLE_WEBHOOK_MAC_SECRET_BASE64!,
+  signature: getAirtableWebhookContentMac(request.headers),
+})
+
+const payloads = await client.webhooks.listWebhookPayloads(notification.webhook.id)
+```
 
 ## Error handling
 

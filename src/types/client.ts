@@ -1,4 +1,9 @@
 import type { AirtableRecordsCacheOptions } from './cache-store'
+import type {
+  AirtableObservabilityHooks,
+  AirtableRequestScheduler,
+} from './observability'
+import type { AirtableRateLimiterOptions } from '@/rate-limiter'
 
 export type CustomHeaders = Record<string, string | number | boolean>
 
@@ -152,4 +157,41 @@ export interface AirtableClientOptions {
    * and overridden per-base via `Airtable.base(baseId, { recordsCache })`.
    */
   recordsCache?: AirtableRecordsCacheOptions
+
+  /**
+   * Lightweight lifecycle hooks for production logging and metrics.
+   *
+   * These hooks receive request metadata such as URL, method, base id, attempt
+   * number, status, retry delay, and duration. They intentionally do not
+   * include request headers or bodies so API keys and request payloads are not
+   * logged by default. URLs can still contain Airtable query values such as
+   * formulas, view names, field names, and offsets; redact them when needed.
+   *
+   * Hook failures are swallowed by the SDK. Observability code should never
+   * make Airtable requests fail.
+   */
+  observability?: AirtableObservabilityHooks
+
+  /**
+   * Optional scheduler that wraps every HTTP attempt before `fetch` is called.
+   *
+   * Use this when you want to enforce a shared queue, rate limiter, circuit
+   * breaker, or tracing boundary around Airtable requests. The built-in
+   * `AirtableRateLimiter` implements this interface for common per-process
+   * throttling.
+   */
+  requestScheduler?: AirtableRequestScheduler
+
+  /**
+   * Convenience configuration for the built-in `AirtableRateLimiter`.
+   *
+   * - `true` enables the default limiter (`5` request starts per second,
+   *   up to `5` concurrent attempts).
+   * - an options object customizes the limiter.
+   *
+   * Use {@link requestScheduler} instead when you need a shared external
+   * scheduler or distributed rate limiting. `rateLimiter` and
+   * `requestScheduler` are mutually exclusive.
+   */
+  rateLimiter?: boolean | AirtableRateLimiterOptions
 }

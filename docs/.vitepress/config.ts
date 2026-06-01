@@ -65,6 +65,18 @@ const apiSidebar: DefaultTheme.Sidebar = {
         { text: 'CreateWebhookParams', link: '/api/Interfaces/CreateWebhookParams' },
         { text: 'AirtableWebhookPayload', link: '/api/Interfaces/AirtableWebhookPayload' },
         { text: 'AirtableWebhookSpecification', link: '/api/Interfaces/AirtableWebhookSpecification' },
+        { text: 'verifyAirtableWebhookNotification', link: '/api/Functions/verifyAirtableWebhookNotification' },
+        { text: 'verifyAirtableWebhookSignature', link: '/api/Functions/verifyAirtableWebhookSignature' },
+        { text: 'getAirtableWebhookContentMac', link: '/api/Functions/getAirtableWebhookContentMac' },
+      ],
+    },
+    {
+      text: 'Production DX',
+      items: [
+        { text: 'AirtableObservabilityHooks', link: '/api/Interfaces/AirtableObservabilityHooks' },
+        { text: 'AirtableRequestScheduler', link: '/api/Interfaces/AirtableRequestScheduler' },
+        { text: 'AirtableRateLimiter', link: '/api/Classes/AirtableRateLimiter' },
+        { text: 'AirtableRateLimiterOptions', link: '/api/Interfaces/AirtableRateLimiterOptions' },
       ],
     },
     {

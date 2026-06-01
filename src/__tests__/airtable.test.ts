@@ -55,6 +55,13 @@ describe('airtable global facade', () => {
     const globalRecordsCache = {
       defaultTtlMs: 12_345,
     }
+    const observability = {
+      onRequestEnd: vi.fn(),
+    }
+    const rateLimiter = {
+      requestsPerSecond: 4,
+      maxConcurrent: 2,
+    }
 
     // Use a "constructor style" implementation to ensure `new AirtableClientMock()` works
     AirtableClientMock.mockImplementation(function (this: any, opts: any) {
@@ -77,6 +84,8 @@ describe('airtable global facade', () => {
       retryOnStatuses: retryStatuses,
       customHeaders,
       recordsCache: globalRecordsCache,
+      observability,
+      rateLimiter,
     })
 
     const base = Airtable.base<{ name: string }>('appBase123')
@@ -98,11 +107,65 @@ describe('airtable global facade', () => {
       retryOnStatuses: retryStatuses,
       customHeaders,
       recordsCache: globalRecordsCache,
+      observability,
+      rateLimiter,
     })
 
     // base.id / base.client metadata should be correct
     expect(base.id).toBe('appBase123')
     expect(base.client).toBe(instance)
+  })
+
+  it('per-base requestScheduler and rateLimiter overrides remain mutually exclusive', async () => {
+    const globalScheduler = { schedule: vi.fn() }
+    const perBaseScheduler = { schedule: vi.fn() }
+
+    AirtableClientMock.mockImplementation(function (this: any, opts: any) {
+      ;(this as any)._opts = opts
+      ;(this as any).records = {}
+    })
+
+    const { Airtable } = await import('@/airtable')
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      requestScheduler: globalScheduler,
+    })
+
+    const schedulerBase = Airtable.base<{ name: string }>('appScheduler')
+    expect((schedulerBase.client as any)._opts.requestScheduler).toBe(globalScheduler)
+    expect((schedulerBase.client as any)._opts.rateLimiter).toBeUndefined()
+
+    const limiterBase = Airtable.base<{ name: string }>('appLimiter', {
+      rateLimiter: true,
+    })
+    expect((limiterBase.client as any)._opts.requestScheduler).toBeUndefined()
+    expect((limiterBase.client as any)._opts.rateLimiter).toBe(true)
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      rateLimiter: true,
+    })
+
+    const schedulerOverrideBase = Airtable.base<{ name: string }>('appSchedulerOverride', {
+      requestScheduler: perBaseScheduler,
+    })
+    expect((schedulerOverrideBase.client as any)._opts.requestScheduler).toBe(perBaseScheduler)
+    expect((schedulerOverrideBase.client as any)._opts.rateLimiter).toBeUndefined()
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      rateLimiter: false,
+    })
+
+    const disabledLimiterBase = Airtable.base<{ name: string }>('appDisabledLimiter')
+    expect((disabledLimiterBase.client as any)._opts.requestScheduler).toBeUndefined()
+    expect((disabledLimiterBase.client as any)._opts.rateLimiter).toBe(false)
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      requestScheduler: undefined,
+    })
   })
 
   it('per-base recordsCache overrides global recordsCache', async () => {
