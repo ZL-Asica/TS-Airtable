@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.1...HEAD)
+## [Unreleased](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.2-beta.0...HEAD)
+
+## [0.4.2-beta.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.1...v0.4.2-beta.0) - 2026-06-01
+
+This prerelease improves Airtable-compatible robustness and developer experience for error parsing, rate-limit handling, pagination, upsert validation, and documentation.
+
+### 🐛 Bug Fixes / 修复
+- fix(records): validate upsert merge field names ([#30](https://github.com/ZL-Asica/TS-Airtable/pull/30)) by @ZL-Asica
+
+### 📖 Documentation / 文档更新
+- docs: document robustness edge cases ([#31](https://github.com/ZL-Asica/TS-Airtable/pull/31)) by @ZL-Asica
+
+### 🧰 Internal / 内部变更
+- test(core): cover Airtable error edge cases ([#29](https://github.com/ZL-Asica/TS-Airtable/pull/29)) by @ZL-Asica
 
 ## [0.4.1](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.0...v0.4.1) - 2026-06-01
 
