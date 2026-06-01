@@ -172,6 +172,7 @@ jobs:
               "### 📦 Dependencies / 依赖更新",
               "### 📖 Documentation / 文档更新",
               "### 🧰 Internal / 内部变更",
+              "### 🧪 Tests / 测试",
               "### 💥 Breaking Changes / 破坏性变更",
               "### 🎨 UI UX & Styling / UI UX & 样式",
               "### 🔄 Miscellaneous / 其他变更",
@@ -184,7 +185,7 @@ jobs:
               ["docs", "### 📖 Documentation / 文档更新"],
               ["ci", "### 🧰 Internal / 内部变更"],
               ["build", "### 🧰 Internal / 内部变更"],
-              ["test", "### 🧰 Internal / 内部变更"],
+              ["test", "### 🧪 Tests / 测试"],
             ]);
             const dependencyScopes = new Set(["dep", "deps", "dependencies"]);
             const classifyBullet = (bullet, fallbackCategory) => {
