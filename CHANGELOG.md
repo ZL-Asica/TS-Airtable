@@ -9,9 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.1-beta.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.0...v0.4.1-beta.0) - 2026-06-01
 
+### 📦 Dependencies / 依赖更新
+
+- chore(deps): update development tooling ([#24](https://github.com/ZL-Asica/TS-Airtable/pull/24)) by @ZL-Asica
+
 ### 🧰 Internal / 内部变更
+
 - ci(release): fix release PR creation credentials ([#25](https://github.com/ZL-Asica/TS-Airtable/pull/25)) by @ZL-Asica
+
 ### 🔄 Miscellaneous / 其他变更
+
 - ci(release): publish npm from release workflow ([#16](https://github.com/ZL-Asica/TS-Airtable/pull/16)) by @ZL-Asica
 - ci(release): read manual version input from event payload ([#17](https://github.com/ZL-Asica/TS-Airtable/pull/17)) by @ZL-Asica
 - chore(package): correct release metadata ([#18](https://github.com/ZL-Asica/TS-Airtable/pull/18)) by @ZL-Asica

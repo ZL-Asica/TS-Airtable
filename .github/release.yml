@@ -1,6 +1,6 @@
 changelog:
   exclude:
-    labels: [ignore-for-release, wip, dependencies]
+    labels: [ignore-for-release, wip]
     authors: ['dependabot[bot]', renovate-bot]
 
   categories:
