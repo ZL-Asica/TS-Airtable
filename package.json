@@ -66,8 +66,9 @@
     "prepublishOnly": "pnpm run build",
     "docs": "typedoc && pnpm docs:clean",
     "docs:clean": "node fix-markdown.ts && rm -rf docs/.vitepress/dist docs/.vitepress/cache",
+    "docs:version": "node scripts/sync-doc-version.ts",
     "docs:dev": "vitepress dev docs",
-    "docs:publish:ci": "pnpm run docs && rm -rf docs/api.index.md && pnpm run docs:build",
+    "docs:publish:ci": "pnpm run docs && pnpm run docs:version && rm -rf docs/api.index.md && pnpm run docs:build",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "prepare": "husky || true"

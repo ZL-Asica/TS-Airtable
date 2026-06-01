@@ -1,0 +1,20 @@
+[
+  {
+    "version": "v0.4.2-beta.0",
+    "channel": "prerelease",
+    "label": "v0.4.2-beta.0 prerelease",
+    "path": "/versions/v0.4.2-beta.0/",
+    "npmTag": "beta",
+    "generatedFrom": "v0.4.2-beta.0",
+    "date": "2026-06-01"
+  },
+  {
+    "version": "v0.4.1",
+    "channel": "stable",
+    "label": "v0.4.1 stable",
+    "path": "/versions/v0.4.1/",
+    "npmTag": "latest",
+    "generatedFrom": "v0.4.1",
+    "date": "2026-06-01"
+  }
+]
