@@ -160,7 +160,9 @@ const webhooks = await client.webhooks.listWebhooks()
 
 - `listRecords` uses Airtable's normal GET endpoint for short requests and
   automatically falls back to `POST /listRecords` when the generated GET URL
-  would exceed Airtable's documented URL length limit.
+  would exceed Airtable's documented URL length limit. The fallback keeps
+  `timeZone` and `userLocale` in the query string, matching Airtable's
+  endpoint rules, and moves list options into the JSON body.
 - Retryable HTTP statuses default to `[429, 500, 502, 503, 504]`; 429 responses
   are retried by default and `Retry-After` is respected when Airtable sends it.
 - Set `noRetryIfRateLimited: true` if you want 429 responses to surface
@@ -171,6 +173,8 @@ const webhooks = await client.webhooks.listWebhooks()
   Airtable writes. `AbortError` is never retried.
 - The HTTP path always uses Airtable's v0 API. `apiVersion`, when provided, is
   sent as the `X-Airtable-API-Version` header for official-client compatibility.
+  `apiVersion` and `customHeaders` are never serialized into Airtable query
+  parameters.
 
 ## Optional record caching (overview)
 
@@ -264,6 +268,11 @@ try {
   }
 }
 ```
+
+`AirtableError.payload` preserves Airtable JSON error bodies when they are
+available. For compatibility with proxies and mocks, JSON-shaped error bodies
+are also parsed when the response omits a JSON content type; malformed error
+bodies still surface as `AirtableError` with the HTTP status.
 
 ## Development
 
