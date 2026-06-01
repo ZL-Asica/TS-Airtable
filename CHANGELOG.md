@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.0...HEAD)
+## [Unreleased](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.1-beta.0...HEAD)
+
+## [0.4.1-beta.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.0...v0.4.1-beta.0) - 2026-06-01
+
+### 📦 Dependencies / 依赖更新
+
+- chore(deps): update development tooling ([#24](https://github.com/ZL-Asica/TS-Airtable/pull/24)) by @ZL-Asica
+
+### 🧰 Internal / 内部变更
+
+- ci(release): publish prereleases with beta npm tag ([#26](https://github.com/ZL-Asica/TS-Airtable/pull/26)) by @ZL-Asica
+- ci(release): fix release PR creation credentials ([#25](https://github.com/ZL-Asica/TS-Airtable/pull/25)) by @ZL-Asica
+
+### 🔄 Miscellaneous / 其他变更
+
+- ci(release): publish npm from release workflow ([#16](https://github.com/ZL-Asica/TS-Airtable/pull/16)) by @ZL-Asica
+- ci(release): read manual version input from event payload ([#17](https://github.com/ZL-Asica/TS-Airtable/pull/17)) by @ZL-Asica
+- chore(package): correct release metadata ([#18](https://github.com/ZL-Asica/TS-Airtable/pull/18)) by @ZL-Asica
+- ci: modernize actions and PR validation ([#19](https://github.com/ZL-Asica/TS-Airtable/pull/19)) by @ZL-Asica
+- test(package): verify published package contract ([#20](https://github.com/ZL-Asica/TS-Airtable/pull/20)) by @ZL-Asica
+- ci: update pnpm action ([#21](https://github.com/ZL-Asica/TS-Airtable/pull/21)) by @ZL-Asica
+- test(package): run contract verifier as TypeScript ([#22](https://github.com/ZL-Asica/TS-Airtable/pull/22)) by @ZL-Asica
+- ci(package): test tarball across node versions ([#23](https://github.com/ZL-Asica/TS-Airtable/pull/23)) by @ZL-Asica
 
 ## [0.4.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.3.1...v0.4.0) - 2026-05-31
 

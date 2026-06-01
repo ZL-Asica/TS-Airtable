@@ -243,4 +243,8 @@ jobs:
 
       - name: Publish to npm
         if: steps.npm_version.outputs.exists != 'true'
-        run: pnpm publish --access public --no-git-checks --provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST_TAG="${{ needs.release.outputs.is_prerelease == 'true' && 'beta' || 'latest' }}"
+          pnpm publish --access public --no-git-checks --provenance --tag "$DIST_TAG"
