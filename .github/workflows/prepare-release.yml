@@ -186,7 +186,7 @@ jobs:
               ["build", "### 🧰 Internal / 内部变更"],
               ["test", "### 🧰 Internal / 内部变更"],
             ]);
-            const dependencyScopes = new Set(["dep", "deps", "dependencies", "package"]);
+            const dependencyScopes = new Set(["dep", "deps", "dependencies"]);
             const classifyBullet = (bullet, fallbackCategory) => {
               const title = bullet.replace(/^-\s+/, "").replace(/\s+\(\[#\d+\]\(.+?\)\)\s+by\s+@[A-Za-z0-9-]+\s*$/, "");
               const match = title.match(/^([a-z]+)(?:\(([^)]+)\))?(!)?:\s+/i);

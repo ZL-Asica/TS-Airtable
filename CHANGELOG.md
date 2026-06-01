@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📦 Dependencies / 依赖更新
 - chore(deps): update development tooling ([#24](https://github.com/ZL-Asica/TS-Airtable/pull/24)) by @ZL-Asica
-- chore(package): correct release metadata ([#18](https://github.com/ZL-Asica/TS-Airtable/pull/18)) by @ZL-Asica
 
 ### 🧰 Internal / 内部变更
 - ci(release): fix release PR creation credentials ([#25](https://github.com/ZL-Asica/TS-Airtable/pull/25)) by @ZL-Asica
@@ -26,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔄 Miscellaneous / 其他变更
 - chore(release): polish release metadata ([#27](https://github.com/ZL-Asica/TS-Airtable/pull/27)) by @ZL-Asica
 - release: v0.4.1-beta.0 by @github-actions[bot] in https://github.com/ZL-Asica/TS-Airtable/pull/26
+- chore(package): correct release metadata ([#18](https://github.com/ZL-Asica/TS-Airtable/pull/18)) by @ZL-Asica
 
 ## [0.4.1-beta.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.0...v0.4.1-beta.0) - 2026-06-01
 
