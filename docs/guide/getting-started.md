@@ -165,7 +165,9 @@ console.log(webhooks.webhooks.length)
 
 - `listRecords` uses Airtable's regular GET endpoint while the generated URL is
   within Airtable's documented URL length limit. Longer requests automatically
-  use the read-only `POST /listRecords` fallback.
+  use the read-only `POST /listRecords` fallback. For that fallback,
+  `timeZone` and `userLocale` stay in the query string while list options move
+  into the JSON request body.
 - Retryable HTTP statuses default to `[429, 500, 502, 503, 504]`. Rate limits
   are retried by default, and `Retry-After` is respected when Airtable sends it.
 - Transient network errors are retried for GET/HEAD requests and the
@@ -173,7 +175,8 @@ console.log(webhooks.webhooks.length)
   network failure to avoid duplicate writes.
 - `apiVersion`, when provided, is sent as `X-Airtable-API-Version` for
   compatibility with the official client. Request paths continue to use
-  Airtable's v0 HTTP API.
+  Airtable's v0 HTTP API, and compatibility headers are not added to query
+  parameters.
 
 ## Optional caching (quick overview)
 
@@ -215,6 +218,12 @@ class AirtableError extends Error {
   payload?: AirtableErrorResponseBody
 }
 ```
+
+`payload` preserves Airtable JSON error bodies when available. If a proxy or
+mock returns JSON-shaped error text without a JSON content type, the client
+still attempts to recover the Airtable error payload. Malformed error bodies are
+reported as `AirtableError` with the HTTP status instead of leaking JSON parser
+errors from failed API responses.
 
 ## What’s next?
 

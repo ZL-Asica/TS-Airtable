@@ -81,6 +81,9 @@ console.log('Total records:', all.length)
 ```
 
 > ℹ️ `listAllRecords` keeps calling `listRecords` until there is no `offset` or `maxRecords` is reached.
+> Runtime `offset` values passed through JavaScript are ignored for the first
+> page; pagination always starts from the beginning and then follows Airtable's
+> returned cursor.
 
 ### Streaming: `iterateRecords`
 
@@ -94,7 +97,9 @@ for await (const record of client.records.iterateRecords<Task>('Tasks', {
 }
 ```
 
-You can still pass `maxRecords` to stop early.
+You can still pass `maxRecords` to stop early. Like `listAllRecords`,
+`iterateRecords` owns cursor progression and ignores any runtime caller-provided
+initial `offset`.
 
 ## Getting a single record
 
@@ -205,8 +210,18 @@ Depending on whether a record with that external key exists, the API will:
 - or **create** a new one and report the record ID in `createdRecords`
 
 For upserts, `id` is optional when `performUpsert` is provided. Every id-less
-record must include all fields listed in `fieldsToMergeOn`, and Airtable limits
-that list to one to three fields.
+record must include non-null values for all fields listed in `fieldsToMergeOn`,
+and Airtable limits that list to one to three fields.
+
+The client validates the upsert shape before sending the request:
+
+- `fieldsToMergeOn` must contain one to three non-empty string field names or IDs.
+- `fieldsToMergeOn` must not contain duplicates.
+- id-less upsert records must include a non-null, non-undefined value for every
+  merge field.
+
+Records with an explicit `id` can still be included in an upsert batch; Airtable
+uses the `id` for those records.
 
 ## Updating a single record
 
