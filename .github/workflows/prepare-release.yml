@@ -41,6 +41,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           ref: main
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -238,7 +239,7 @@ jobs:
       # 5) create Release PR
       - name: Create Release PR
         if: steps.notes.outputs.body_changelog != ''
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: release/v${{ steps.bump.outputs.next_version }}
           title: 'release: v${{ steps.bump.outputs.next_version }}'
