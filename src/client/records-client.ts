@@ -991,18 +991,35 @@ function validatePerformUpsertRecords<TFields>(
     )
   }
 
-  const idLessRecord = records.find((record) => {
+  if (fieldsToMergeOn.some(field => field.trim().length === 0)) {
+    throw new Error(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn entries must be non-empty strings',
+    )
+  }
+
+  if (new Set(fieldsToMergeOn).size !== fieldsToMergeOn.length) {
+    throw new Error(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn must not contain duplicate fields',
+    )
+  }
+
+  const idLessRecordWithMissingMergeValue = records.find((record) => {
     if (record.id) {
       return false
     }
 
     const fields = record.fields as Record<string, unknown>
-    return fieldsToMergeOn.some(field => !(field in fields))
+    const fieldNames = new Set(Object.keys(fields))
+    return fieldsToMergeOn.some(field =>
+      !fieldNames.has(field)
+      || fields[field] === undefined
+      || fields[field] === null,
+    )
   })
 
-  if (idLessRecord) {
+  if (idLessRecordWithMissingMergeValue) {
     throw new Error(
-      'AirtableRecordsClient.updateRecords: id-less upsert records must include every field in performUpsert.fieldsToMergeOn',
+      'AirtableRecordsClient.updateRecords: id-less upsert records must include non-null values for every field in performUpsert.fieldsToMergeOn',
     )
   }
 }

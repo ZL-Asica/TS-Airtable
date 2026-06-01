@@ -257,6 +257,38 @@ describe('airtableRecordsClient', () => {
     expect(all.map(r => r.id)).toEqual(['rec1', 'rec2'])
   })
 
+  it('listAllRecords ignores caller-provided offsets and follows Airtable cursors', async () => {
+    const core = makeCore()
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    const listSpy = vi.spyOn(client, 'listRecords')
+
+    listSpy
+      .mockResolvedValueOnce({
+        records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+        offset: 'server-next',
+      })
+      .mockResolvedValueOnce({
+        records: [{ id: 'rec2', fields: { Name: 'Task 2' } }],
+        offset: undefined,
+      })
+
+    const all = await client.listAllRecords('Tasks', {
+      view: 'Grid',
+      offset: 'caller-offset',
+    } as any)
+
+    expect(all.map(r => r.id)).toEqual(['rec1', 'rec2'])
+    expect(listSpy).toHaveBeenNthCalledWith(1, 'Tasks', {
+      view: 'Grid',
+      offset: undefined,
+    })
+    expect(listSpy).toHaveBeenNthCalledWith(2, 'Tasks', {
+      view: 'Grid',
+      offset: 'server-next',
+    })
+  })
+
   it('iterateRecords yields records across pages and honors maxRecords', async () => {
     const core = makeCore()
     const client = new AirtableRecordsClient<TaskFields>(core)
@@ -309,6 +341,41 @@ describe('airtableRecordsClient', () => {
     expect(ids).toEqual(['rec1', 'rec2'])
     // Confirm it actually went though 2 pages, which definitely executed `offset = page.offset`
     expect(listSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('iterateRecords ignores caller-provided offsets and follows Airtable cursors', async () => {
+    const core = makeCore()
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    const listSpy = vi.spyOn(client, 'listRecords')
+
+    listSpy
+      .mockResolvedValueOnce({
+        records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+        offset: 'server-next',
+      })
+      .mockResolvedValueOnce({
+        records: [{ id: 'rec2', fields: { Name: 'Task 2' } }],
+        offset: undefined,
+      })
+
+    const ids: string[] = []
+    for await (const rec of client.iterateRecords('Tasks', {
+      view: 'Grid',
+      offset: 'caller-offset',
+    } as any)) {
+      ids.push(rec.id)
+    }
+
+    expect(ids).toEqual(['rec1', 'rec2'])
+    expect(listSpy).toHaveBeenNthCalledWith(1, 'Tasks', {
+      view: 'Grid',
+      offset: undefined,
+    })
+    expect(listSpy).toHaveBeenNthCalledWith(2, 'Tasks', {
+      view: 'Grid',
+      offset: 'server-next',
+    })
   })
 
   it('getRecord builds URL with recordId and get query', async () => {
@@ -520,7 +587,47 @@ describe('airtableRecordsClient', () => {
         { performUpsert: { fieldsToMergeOn: ['Name'] } },
       ),
     ).rejects.toThrow(
-      'AirtableRecordsClient.updateRecords: id-less upsert records must include every field in performUpsert.fieldsToMergeOn',
+      'AirtableRecordsClient.updateRecords: id-less upsert records must include non-null values for every field in performUpsert.fieldsToMergeOn',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Name: 'Blank merge config' } }],
+        { performUpsert: { fieldsToMergeOn: [' '] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn entries must be non-empty strings',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Name: 'Duplicate merge config' } }],
+        { performUpsert: { fieldsToMergeOn: ['Name', 'Name'] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn must not contain duplicate fields',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Name: undefined } }],
+        { performUpsert: { fieldsToMergeOn: ['Name'] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: id-less upsert records must include non-null values for every field in performUpsert.fieldsToMergeOn',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
+        [{ fields: { Name: null as any } }],
+        { performUpsert: { fieldsToMergeOn: ['Name'] } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: id-less upsert records must include non-null values for every field in performUpsert.fieldsToMergeOn',
     )
 
     expect(core.requestJson).not.toHaveBeenCalled()
