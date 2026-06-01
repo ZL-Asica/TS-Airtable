@@ -37,6 +37,57 @@ You’ll typically:
 1. Store `webhook.id` and `macSecretBase64` in your database
 2. Use `macSecretBase64` to verify incoming signatures from Airtable
 
+## Verifying notification signatures
+
+Airtable signs webhook notification requests with `X-Airtable-Content-MAC`.
+Verify that signature before trusting the request body.
+
+Pass the exact raw request body bytes to the verifier. Do not parse JSON and
+then stringify it again before verification; even harmless whitespace changes
+will change the HMAC input.
+
+```ts
+import {
+  getAirtableWebhookContentMac,
+  verifyAirtableWebhookNotification,
+} from 'ts-airtable'
+
+async function handleAirtableWebhook(request: Request) {
+  const rawBody = await request.text()
+
+  const notification = await verifyAirtableWebhookNotification({
+    body: rawBody,
+    macSecretBase64: process.env.AIRTABLE_WEBHOOK_MAC_SECRET_BASE64!,
+    signature: getAirtableWebhookContentMac(request.headers),
+  })
+
+  const page = await client.webhooks.listWebhookPayloads(notification.webhook.id, {
+    limit: 50,
+  })
+
+  return Response.json({
+    baseId: notification.base.id,
+    webhookId: notification.webhook.id,
+    payloadCount: page.payloads.length,
+  })
+}
+```
+
+The verified notification only tells you which base and webhook changed. Fetch
+the actual changes with `client.webhooks.listWebhookPayloads(...)` and track a
+cursor as described below.
+
+Available helpers:
+
+- `getAirtableWebhookContentMac(headers)` reads the signature header from a
+  `Headers` object or plain header record.
+- `verifyAirtableWebhookSignature(...)` returns a boolean when you only need
+  signature validation.
+- `verifyAirtableWebhookNotification(...)` verifies the signature and parses
+  the minimal notification body.
+- `AirtableWebhookVerificationError` is thrown for invalid JSON, invalid
+  notification shape, failed signatures, or missing runtime crypto support.
+
 ## Listing webhooks
 
 ```ts
