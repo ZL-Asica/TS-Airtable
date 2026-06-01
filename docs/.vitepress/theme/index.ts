@@ -4,6 +4,7 @@ import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
 import DocAfter from './components/DocAfter.vue'
 import NotFound from './components/NotFound.vue'
+import VersionList from './components/VersionList.vue'
 import './style.css'
 
 export default {
@@ -19,7 +20,7 @@ export default {
       },
     )
   },
-  // enhanceApp({ app, router, siteData }) {
-  //   // ...
-  // },
+  enhanceApp({ app }) {
+    app.component('VersionList', VersionList)
+  },
 } satisfies Theme

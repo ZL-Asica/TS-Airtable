@@ -1,9 +1,20 @@
 import type { DefaultTheme, UserConfig } from 'vitepress'
 import { execSync } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig } from 'vitepress'
 import { generateSidebar } from 'vitepress-sidebar'
 import pkg from '../../package.json' with { type: 'json' }
+import versions from '../versions.json' with { type: 'json' }
+
+interface DocsVersionEntry {
+  version: string
+  channel: 'stable' | 'prerelease'
+  label: string
+  path: string
+}
+
+const docsVersions = versions as DocsVersionEntry[]
 
 const apiSidebar: DefaultTheme.Sidebar = generateSidebar([
   {
@@ -15,6 +26,48 @@ const apiSidebar: DefaultTheme.Sidebar = generateSidebar([
     rootGroupText: 'API Reference',
   },
 ])
+
+function guideSidebar(prefix = ''): DefaultTheme.SidebarItem[] {
+  return [
+    {
+      text: 'Guide',
+      items: [
+        { text: 'Getting Started', link: `${prefix}/guide/getting-started` },
+        { text: 'Records', link: `${prefix}/guide/records` },
+        { text: 'Metadata', link: `${prefix}/guide/metadata` },
+        { text: 'Webhooks', link: `${prefix}/guide/webhooks` },
+      ],
+    },
+    {
+      text: 'Features',
+      items: [
+        { text: 'Features overview', link: `${prefix}/guide/features/` },
+        { text: 'Caching', link: `${prefix}/guide/features/caching` },
+        { text: 'Custom cache store example (Cloudflare KV)', link: `${prefix}/guide/features/custom-cloudflare-kv-cache` },
+      ],
+    },
+  ]
+}
+
+const versionSidebars: DefaultTheme.Sidebar = {}
+
+for (const version of docsVersions) {
+  const prefix = version.path.replace(/\/$/, '')
+  versionSidebars[`${version.path}guide/`] = guideSidebar(prefix)
+
+  if (fs.existsSync(path.resolve('docs', `versions/${version.version}/api`))) {
+    Object.assign(versionSidebars, generateSidebar([
+      {
+        documentRootPath: 'docs',
+        scanStartPath: `versions/${version.version}/api`,
+        resolvePath: `${version.path}api/`,
+        useTitleFromFileHeading: true,
+        useFolderLinkFromIndexFile: true,
+        rootGroupText: `API Reference (${version.version})`,
+      },
+    ]))
+  }
+}
 
 // https://vitepress.dev/reference/site-config
 const vitePressConfig: UserConfig<DefaultTheme.Config> = {
@@ -74,6 +127,17 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
       { text: 'Features', link: '/guide/features/' },
       { text: 'API Reference', link: '/api/' },
       {
+        text: 'Versions',
+        items: [
+          { text: `Current v${pkg.version}`, link: '/' },
+          { text: 'Version index', link: '/versions/' },
+          ...docsVersions.map(version => ({
+            text: version.label,
+            link: version.path,
+          })),
+        ],
+      },
+      {
         text: `v${pkg.version}`,
         items: [
           {
@@ -100,25 +164,8 @@ const vitePressConfig: UserConfig<DefaultTheme.Config> = {
         'Copyright &copy; 2025-Present <a href="https://zla.pub" target="_blank">ZL Asica</a>',
     },
     sidebar: {
-      '/guide/': [
-        {
-          text: 'Guide',
-          items: [
-            { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Records', link: '/guide/records' },
-            { text: 'Metadata', link: '/guide/metadata' },
-            { text: 'Webhooks', link: '/guide/webhooks' },
-          ],
-        },
-        {
-          text: 'Features',
-          items: [
-            { text: 'Features overview', link: '/guide/features/' },
-            { text: 'Caching', link: '/guide/features/caching' },
-            { text: 'Custom cache store example (Cloudflare KV)', link: '/guide/features/custom-cloudflare-kv-cache' },
-          ],
-        },
-      ],
+      '/guide/': guideSidebar(),
+      ...versionSidebars,
       ...apiSidebar,
     },
     editLink: {
