@@ -597,6 +597,27 @@ describe('airtableCoreClient', () => {
     })
   })
 
+  it('handleResponse ignores malformed JSON-shaped non-JSON error bodies', async () => {
+    const core = new AirtableCoreClient({
+      apiKey: 'key',
+      baseId: 'base',
+      fetch: vi.fn() as any,
+    })
+
+    const resp = new Response('{not valid json}', {
+      status: 502,
+      headers: new Headers({ 'Content-Type': 'text/plain' }),
+    })
+
+    await expect(
+      // @ts-expect-error testing private method
+      core.handleResponse(resp),
+    ).rejects.toMatchObject({
+      status: 502,
+      payload: undefined,
+    })
+  })
+
   it('handleResponse wraps invalid non-2xx JSON as AirtableError', async () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
