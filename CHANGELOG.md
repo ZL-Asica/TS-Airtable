@@ -41,13 +41,13 @@ This release improves Airtable Web API compatibility, request robustness, releas
 - chore(ci): update dependencies and release workflows ([#11](https://github.com/ZL-Asica/TS-Airtable/pull/11)) by @ZL-Asica
 - ci(release): align generated notes categories ([#14](https://github.com/ZL-Asica/TS-Airtable/pull/14)) by @ZL-Asica
 
-## [0.3.1] - 2025-12-11
+## [0.3.1](https://github.com/ZL-Asica/TS-Airtable/compare/v0.3.0...v0.3.1) - 2025-12-11
 
 ### Fixed
 
 NPM classic token deprecated. Use OIDC to authenticate and publish to NPM registry.
 
-## [0.3.0] - 2025-12-11
+## [0.3.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.2.3...v0.3.0) - 2025-12-11
 
 ### Added
 
@@ -56,7 +56,7 @@ NPM classic token deprecated. Use OIDC to authenticate and publish to NPM regist
   - Allows custom logic to transform Airtable attachment URLs (e.g. re-hosting to S3 / R2 / CDN).
   - Works seamlessly with built-in caching to avoid redundant transformations per `attachment.id`.
 
-## [0.2.3] - 2025-11-10
+## [0.2.3](https://github.com/ZL-Asica/TS-Airtable/compare/v0.2.2...v0.2.3) - 2025-11-10
 
 ### Added
 
@@ -73,13 +73,13 @@ NPM classic token deprecated. Use OIDC to authenticate and publish to NPM regist
 
 - Removed unsupported `@link` tag in Typedoc generated markdown files to avoid warning.
 
-## [0.2.2] - 2025-11-10
+## [0.2.2](https://github.com/ZL-Asica/TS-Airtable/compare/v0.2.1...v0.2.2) - 2025-11-10
 
 ### Fixed
 
 - Type import error in `errors.test.ts` file.
 
-## [0.2.1] - 2025-11-10
+## [0.2.1](https://github.com/ZL-Asica/TS-Airtable/compare/v0.2.0...v0.2.1) - 2025-11-10
 
 ### Added
 
@@ -91,7 +91,7 @@ NPM classic token deprecated. Use OIDC to authenticate and publish to NPM regist
 
 - Some type minor issues and JSDOC minor comments issues in `client` and `airtable` files.
 
-## [0.2.0] - 2025-11-10
+## [0.2.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.1.3...v0.2.0) - 2025-11-10
 
 ### Added
 
@@ -109,20 +109,20 @@ NPM classic token deprecated. Use OIDC to authenticate and publish to NPM regist
 - Description updated.
 - Rename `CODE_OF_CONDUCT.MD` to `CODE_OF_CONDUCT.md` by delete and added via 2 different commit to avoid case insensitive issue in git.
 
-## [0.1.3] - 2025-11-09
+## [0.1.3](https://github.com/ZL-Asica/TS-Airtable/compare/v0.1.2...v0.1.3) - 2025-11-09
 
 ### Fixed
 
 - Fix npm link in vitepress setting to the right one.
 - Rename `CODE_OF_CONDUCT.MD` to `CODE_OF_CONDUCT.md`.
 
-## [0.1.2] - 2025-11-09
+## [0.1.2](https://github.com/ZL-Asica/TS-Airtable/compare/v0.1.1...v0.1.2) - 2025-11-09
 
 ### Fixed
 
 - `vue` setting in `eslint.config.mjs`. And turned on a11y for vue part.
 
-## [0.1.1] - 2025-11-09
+## [0.1.1](https://github.com/ZL-Asica/TS-Airtable/compare/v0.1.0...v0.1.1) - 2025-11-09
 
 ### Added
 
@@ -137,7 +137,7 @@ NPM classic token deprecated. Use OIDC to authenticate and publish to NPM regist
 - Fix links in `README.md` and added documentation link.
 - Correct published output file declarations in `package.json`.
 
-## [0.1.0] - 2025-11-09
+## [0.1.0](https://github.com/ZL-Asica/TS-Airtable/releases/tag/v0.1.0) - 2025-11-09
 
 Initial release
 

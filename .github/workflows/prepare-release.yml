@@ -164,14 +164,89 @@ jobs:
               (_line, title, user, url, prNumber) => `- ${title} ([#${prNumber}](${url})) by ${user}`
             );
 
-            // 7) Tidy whitespace
+            // 7) Reclassify conventional PR titles when labels are missing or too broad.
+            const categoryOrder = [
+              "### 🚀 Features / 新功能",
+              "### 🐛 Bug Fixes / 修复",
+              "### 🛠️ Improvements / 改进",
+              "### 📦 Dependencies / 依赖更新",
+              "### 📖 Documentation / 文档更新",
+              "### 🧰 Internal / 内部变更",
+              "### 💥 Breaking Changes / 破坏性变更",
+              "### 🎨 UI UX & Styling / UI UX & 样式",
+              "### 🔄 Miscellaneous / 其他变更",
+            ];
+            const categoryByType = new Map([
+              ["feat", "### 🚀 Features / 新功能"],
+              ["fix", "### 🐛 Bug Fixes / 修复"],
+              ["perf", "### 🛠️ Improvements / 改进"],
+              ["refactor", "### 🛠️ Improvements / 改进"],
+              ["docs", "### 📖 Documentation / 文档更新"],
+              ["ci", "### 🧰 Internal / 内部变更"],
+              ["build", "### 🧰 Internal / 内部变更"],
+              ["test", "### 🧰 Internal / 内部变更"],
+            ]);
+            const dependencyScopes = new Set(["dep", "deps", "dependencies", "package"]);
+            const classifyBullet = (bullet, fallbackCategory) => {
+              const title = bullet.replace(/^-\s+/, "").replace(/\s+\(\[#\d+\]\(.+?\)\)\s+by\s+@[A-Za-z0-9-]+\s*$/, "");
+              const match = title.match(/^([a-z]+)(?:\(([^)]+)\))?(!)?:\s+/i);
+              if (!match) return fallbackCategory;
+
+              const type = match[1].toLowerCase();
+              const scope = (match[2] || "").toLowerCase();
+              const breaking = Boolean(match[3]);
+              if (breaking) return "### 💥 Breaking Changes / 破坏性变更";
+              if ((type === "chore" || type === "build") && dependencyScopes.has(scope)) {
+                return "### 📦 Dependencies / 依赖更新";
+              }
+
+              return categoryByType.get(type) || "### 🔄 Miscellaneous / 其他变更";
+            };
+            const regroupConventionalNotes = (notes) => {
+              const grouped = new Map(categoryOrder.map((category) => [category, []]));
+              let currentCategory = "### 🔄 Miscellaneous / 其他变更";
+
+              for (const line of notes.split("\n")) {
+                if (line.startsWith("### ")) {
+                  currentCategory = categoryOrder.includes(line)
+                    ? line
+                    : "### 🔄 Miscellaneous / 其他变更";
+                  continue;
+                }
+                if (!line.startsWith("- ")) continue;
+
+                const category = classifyBullet(line, currentCategory);
+                grouped.get(category).push(line);
+              }
+
+              return categoryOrder
+                .map((category) => {
+                  const bullets = grouped.get(category);
+                  return bullets.length > 0 ? `${category}\n${bullets.join("\n")}` : "";
+                })
+                .filter(Boolean)
+                .join("\n\n");
+            };
+            changelog = regroupConventionalNotes(changelog);
+
+            // 8) Tidy whitespace
             changelog = changelog.replace(/\n{3,}/g, "\n\n").trim();
 
+            const fullChangelog = generated.match(/^\s*\*\*Full Changelog\*\*:[^\n]*$/im)?.[0]?.trim() || "";
             const releaseBody = generated
               .replace(/^\s*#+\s+What's Changed\s*\n+/im, "")
+              .replace(/^\s*#+\s+New Contributors\s*\n[\s\S]*?(?=^\s*#+\s|\s*$)/im, "")
+              .replace(/^\s*\*\*Full Changelog\*\*:[^\n]*\n?/im, "")
               .replace(/\n{3,}/g, "\n\n")
               .trim();
-            const body = [manualSummary, releaseBody].filter(Boolean).join("\n\n");
+            const normalizedReleaseBody = regroupConventionalNotes(
+              releaseBody
+                .replace(/^####\s+/gm, "### ")
+                .replace(/^##\s+/gm, "### ")
+                .replace(/^\*\s+/gm, "- ")
+                .trim()
+            );
+            const body = [manualSummary, normalizedReleaseBody, fullChangelog].filter(Boolean).join("\n\n");
             const changelogBody = [manualSummary, changelog].filter(Boolean).join("\n\n");
 
             core.setOutput("name", res.data.name || nextTag);

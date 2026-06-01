@@ -95,9 +95,5 @@
     "**/*.{ts,tsx,mjs,js,json,css,md,yml}": [
       "eslint --fix"
     ]
-  },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true
   }
 }

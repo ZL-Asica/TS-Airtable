@@ -20,7 +20,7 @@ changelog:
       labels: [docs, documentation]
 
     - title: 🧰 Internal / 内部变更
-      labels: [internal, ci, workflow, build]
+      labels: [internal, ci, workflow, build, test]
 
     - title: 💥 Breaking Changes / 破坏性变更
       labels: [breaking-change, Semver-Major]
