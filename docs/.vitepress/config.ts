@@ -18,16 +18,88 @@ const docsVersions = versions as DocsVersionEntry[]
 const stableDocsVersion = docsVersions.find(version => version.channel === 'stable')
 const prereleaseDocsVersion = docsVersions.find(version => version.channel === 'prerelease')
 
-const apiSidebar: DefaultTheme.Sidebar = generateSidebar([
-  {
-    documentRootPath: 'docs', // .vitepress directory
-    scanStartPath: 'api', // Scan files under docs/api
-    resolvePath: '/api/', // Generated link prefix => /api/...
-    useTitleFromFileHeading: true,
-    useFolderLinkFromIndexFile: true,
-    rootGroupText: 'API Reference',
-  },
-])
+const apiSidebar: DefaultTheme.Sidebar = {
+  '/api/': [
+    {
+      text: 'API Reference',
+      items: [
+        { text: 'Overview', link: '/api/' },
+      ],
+    },
+    {
+      text: 'Core entry points',
+      items: [
+        { text: 'Airtable', link: '/api/Variables/Airtable' },
+        { text: 'AirtableClient', link: '/api/Classes/AirtableClient' },
+        { text: 'AirtableClientOptions', link: '/api/Interfaces/AirtableClientOptions' },
+        { text: 'AirtableGlobalConfig', link: '/api/Type%20Aliases/AirtableGlobalConfig' },
+      ],
+    },
+    {
+      text: 'Records',
+      items: [
+        { text: 'AirtableRecord', link: '/api/Interfaces/AirtableRecord' },
+        { text: 'ListRecordsParams', link: '/api/Interfaces/ListRecordsParams' },
+        { text: 'ListRecordsResult', link: '/api/Interfaces/ListRecordsResult' },
+        { text: 'CreateRecordInput', link: '/api/Interfaces/CreateRecordInput' },
+        { text: 'UpdateRecordInput', link: '/api/Interfaces/UpdateRecordInput' },
+        { text: 'UpsertRecordInput', link: '/api/Interfaces/UpsertRecordInput' },
+        { text: 'PerformUpsertOptions', link: '/api/Interfaces/PerformUpsertOptions' },
+        { text: 'SortSpec', link: '/api/Interfaces/SortSpec' },
+      ],
+    },
+    {
+      text: 'Metadata',
+      items: [
+        { text: 'ListBasesResult', link: '/api/Interfaces/ListBasesResult' },
+        { text: 'AirtableBaseSchema', link: '/api/Interfaces/AirtableBaseSchema' },
+        { text: 'AirtableTableSchema', link: '/api/Interfaces/AirtableTableSchema' },
+        { text: 'AirtableFieldSchema', link: '/api/Interfaces/AirtableFieldSchema' },
+        { text: 'AirtableViewSchema', link: '/api/Interfaces/AirtableViewSchema' },
+      ],
+    },
+    {
+      text: 'Webhooks',
+      items: [
+        { text: 'AirtableWebhook', link: '/api/Interfaces/AirtableWebhook' },
+        { text: 'CreateWebhookParams', link: '/api/Interfaces/CreateWebhookParams' },
+        { text: 'AirtableWebhookPayload', link: '/api/Interfaces/AirtableWebhookPayload' },
+        { text: 'AirtableWebhookSpecification', link: '/api/Interfaces/AirtableWebhookSpecification' },
+      ],
+    },
+    {
+      text: 'Caching and attachments',
+      items: [
+        { text: 'InMemoryCacheStore', link: '/api/Classes/InMemoryCacheStore' },
+        { text: 'AirtableCacheStore', link: '/api/Interfaces/AirtableCacheStore' },
+        { text: 'AirtableRecordsCacheOptions', link: '/api/Interfaces/AirtableRecordsCacheOptions' },
+        { text: 'AirtableAttachment', link: '/api/Interfaces/AirtableAttachment' },
+      ],
+    },
+    {
+      text: 'Errors and helpers',
+      items: [
+        { text: 'AirtableError', link: '/api/Classes/AirtableError' },
+        { text: 'isAirtableError', link: '/api/Functions/isAirtableError' },
+        { text: 'AirtableErrorResponseBody', link: '/api/Interfaces/AirtableErrorResponseBody' },
+      ],
+    },
+    {
+      text: 'Compatibility aliases',
+      collapsed: true,
+      items: [
+        { text: 'Base', link: '/api/Type%20Aliases/Base' },
+        { text: 'Table', link: '/api/Type%20Aliases/Table' },
+        { text: 'Record', link: '/api/Type%20Aliases/Record' },
+        { text: 'Records', link: '/api/Type%20Aliases/Records' },
+        { text: 'FieldSet', link: '/api/Type%20Aliases/FieldSet' },
+        { text: 'Query', link: '/api/Type%20Aliases/Query' },
+        { text: 'QueryParams', link: '/api/Type%20Aliases/QueryParams' },
+        { text: 'SelectOptions', link: '/api/Type%20Aliases/SelectOptions' },
+      ],
+    },
+  ],
+}
 
 function guideSidebar(prefix = ''): DefaultTheme.SidebarItem[] {
   return [
