@@ -1,4 +1,8 @@
 import type { AirtableRecordsCacheOptions } from './cache-store'
+import type {
+  AirtableObservabilityHooks,
+  AirtableRequestScheduler,
+} from './observability'
 
 export type CustomHeaders = Record<string, string | number | boolean>
 
@@ -152,4 +156,27 @@ export interface AirtableClientOptions {
    * and overridden per-base via `Airtable.base(baseId, { recordsCache })`.
    */
   recordsCache?: AirtableRecordsCacheOptions
+
+  /**
+   * Lightweight lifecycle hooks for production logging and metrics.
+   *
+   * These hooks receive safe request metadata such as URL, method, base id,
+   * attempt number, status, retry delay, and duration. They intentionally do
+   * not include request headers or bodies so secrets and record contents are
+   * not logged by default.
+   *
+   * Hook failures are swallowed by the SDK. Observability code should never
+   * make Airtable requests fail.
+   */
+  observability?: AirtableObservabilityHooks
+
+  /**
+   * Optional scheduler that wraps every HTTP attempt before `fetch` is called.
+   *
+   * Use this when you want to enforce a shared queue, rate limiter, circuit
+   * breaker, or tracing boundary around Airtable requests. The built-in
+   * `AirtableRateLimiter` implements this interface for common per-process
+   * throttling.
+   */
+  requestScheduler?: AirtableRequestScheduler
 }

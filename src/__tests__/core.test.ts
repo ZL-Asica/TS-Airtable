@@ -19,6 +19,7 @@ function jsonResponse(status: number, body: unknown, extraHeaders?: Record<strin
 describe('airtableCoreClient', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('exports constants', () => {
@@ -112,6 +113,145 @@ describe('airtableCoreClient', () => {
     expect(core.apiVersion).toBeUndefined()
     // Default behavior: retry rate limits and respect Retry-After.
     expect(core.noRetryIfRateLimited).toBe(false)
+  })
+
+  it('emits observability events for successful requests', async () => {
+    const onRequestStart = vi.fn()
+    const onRequestEnd = vi.fn()
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      observability: {
+        onRequestStart,
+        onRequestEnd,
+      },
+    })
+
+    await core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {
+      method: 'GET',
+    })
+
+    expect(onRequestStart).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: expect.any(String),
+      baseId: 'app123',
+      method: 'GET',
+      url: 'https://example.com/v0/app123/Tasks',
+      attempt: 0,
+    }))
+    expect(onRequestEnd).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: onRequestStart.mock.calls[0][0].requestId,
+      status: 200,
+      ok: true,
+      durationMs: expect.any(Number),
+    }))
+  })
+
+  it('keeps observability hook errors from breaking requests', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      observability: {
+        onRequestStart() {
+          throw new Error('logger failed')
+        },
+      },
+    })
+
+    await expect(
+      core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {}),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('falls back to a generated request id when crypto.randomUUID is unavailable', async () => {
+    vi.stubGlobal('crypto', {})
+    vi.spyOn(Date, 'now').mockReturnValue(123_456)
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const onRequestStart = vi.fn()
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      observability: {
+        onRequestStart,
+      },
+    })
+
+    await core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {})
+
+    expect(onRequestStart.mock.calls[0][0].requestId).toMatch(/^req_/)
+  })
+
+  it('emits retry and final error events for non-2xx responses', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const onRetry = vi.fn()
+    const onError = vi.fn()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(429, { error: { type: 'RATE_LIMIT', message: 'retry' } }))
+      .mockResolvedValueOnce(jsonResponse(422, { error: { type: 'INVALID', message: 'bad' } })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      retryInitialDelayMs: 1,
+      retryOnStatuses: [429],
+      observability: {
+        onRetry,
+        onError,
+      },
+    })
+
+    await expect(
+      core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {}),
+    ).rejects.toBeInstanceOf(AirtableError)
+
+    expect(onRetry).toHaveBeenCalledWith(expect.objectContaining({
+      attempt: 0,
+      status: 429,
+      delayMs: 1,
+    }))
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+      attempt: 1,
+      status: 422,
+      durationMs: expect.any(Number),
+      error: expect.any(AirtableError),
+    }))
+  })
+
+  it('uses requestScheduler to wrap fetch attempts', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const schedule = vi.fn(async run => run())
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      requestScheduler: { schedule },
+    })
+
+    await core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {
+      method: 'POST',
+      body: JSON.stringify({ fields: { Name: 'A' } }),
+    })
+
+    expect(schedule).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        baseId: 'app123',
+        method: 'POST',
+        url: 'https://example.com/v0/app123/Tasks',
+        attempt: 0,
+      }),
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('buildTableUrl builds table and record URLs with optional query', () => {
