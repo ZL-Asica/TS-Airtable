@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - chore(deps): update development tooling ([#24](https://github.com/ZL-Asica/TS-Airtable/pull/24)) by @ZL-Asica
 
 ### 🧰 Internal / 内部变更
+- fix(release): keep package chore notes miscellaneous ([#28](https://github.com/ZL-Asica/TS-Airtable/pull/28)) by @ZL-Asica
 - ci(release): fix release PR creation credentials ([#25](https://github.com/ZL-Asica/TS-Airtable/pull/25)) by @ZL-Asica
 - ci(release): publish npm from release workflow ([#16](https://github.com/ZL-Asica/TS-Airtable/pull/16)) by @ZL-Asica
 - ci(release): read manual version input from event payload ([#17](https://github.com/ZL-Asica/TS-Airtable/pull/17)) by @ZL-Asica
