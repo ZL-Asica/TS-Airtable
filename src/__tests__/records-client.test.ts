@@ -207,6 +207,39 @@ describe('airtableRecordsClient', () => {
     expect(init).toEqual({ method: 'GET' })
   })
 
+  it('listRecords builds an empty POST /listRecords body when long URLs have no params', async () => {
+    const core = makeCore()
+    core.buildListQuery.mockReturnValue(undefined)
+    core.buildTableUrl.mockImplementation((
+      tableIdOrName: string,
+      recordId?: string,
+      query?: URLSearchParams,
+    ) => {
+      if (recordId === 'listRecords') {
+        const url = new URL(`https://example.com/${tableIdOrName}/listRecords`)
+        if (query && Array.from(query.keys()).length > 0) {
+          url.search = query.toString()
+        }
+        return url
+      }
+
+      return new URL(`https://example.com/${'x'.repeat(MAX_LIST_RECORDS_GET_URL_LENGTH)}`)
+    })
+    core.requestJson.mockResolvedValue({
+      records: [{ id: 'rec1', fields: { Name: 'Task 1' } }],
+    })
+
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    await client.listRecords('Tasks')
+
+    const [url, init] = core.requestJson.mock.calls[0] as [URL, RequestInit]
+    expect(url.pathname).toBe('/Tasks/listRecords')
+    expect(url.search).toBe('')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({})
+  })
+
   it('listAllRecords concatenates pages until offset is exhausted', async () => {
     const core = makeCore()
     const client = new AirtableRecordsClient<TaskFields>(core)
@@ -1092,6 +1125,37 @@ describe('airtableRecordsClient', () => {
     ).rejects.toBe(error)
 
     expect(onError).toHaveBeenCalled()
+  })
+
+  it('cache helpers are no-ops when no cache store is configured', async () => {
+    const core = makeCore()
+    const client = new AirtableRecordsClient<TaskFields>(core)
+
+    await expect(
+      // @ts-expect-error testing private helper
+      client.cacheGet('cache-key'),
+    ).resolves.toBeUndefined()
+    await expect(
+      // @ts-expect-error testing private helper
+      client.cacheSet('cache-key', { ok: true }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('invalidateRecords is a no-op for empty record id lists', async () => {
+    const core = makeCore()
+    const store = {
+      get: vi.fn(),
+      set: vi.fn(),
+      deleteByPrefix: vi.fn(),
+    }
+    const client = new AirtableRecordsClient<TaskFields>(core, { store })
+
+    await expect(
+      // @ts-expect-error testing private helper
+      client.invalidateRecords('Tasks', []),
+    ).resolves.toBeUndefined()
+
+    expect(store.deleteByPrefix).not.toHaveBeenCalled()
   })
 
   // ---------------------------------------------------------------------------
