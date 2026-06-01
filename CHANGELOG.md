@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.2-beta.0...HEAD)
+## [Unreleased](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.2...HEAD)
+
+## [0.4.2](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.1...v0.4.2) - 2026-06-01
+
+This release finalizes the 0.4.2 cycle with Airtable API robustness improvements, dedicated test release-note grouping, expanded coverage, and versioned documentation for stable and prerelease docs.
+
+### 🐛 Bug Fixes / 修复
+- fix(records): validate upsert merge field names ([#30](https://github.com/ZL-Asica/TS-Airtable/pull/30)) by @ZL-Asica
+
+### 📖 Documentation / 文档更新
+- docs(site): add versioned documentation ([#35](https://github.com/ZL-Asica/TS-Airtable/pull/35)) by @ZL-Asica
+- docs: document robustness edge cases ([#31](https://github.com/ZL-Asica/TS-Airtable/pull/31)) by @ZL-Asica
+
+### 🧰 Internal / 内部变更
+- ci(release): classify test notes separately ([#34](https://github.com/ZL-Asica/TS-Airtable/pull/34)) by @ZL-Asica
+
+### 🧪 Tests / 测试
+- test(records): reach full line coverage ([#33](https://github.com/ZL-Asica/TS-Airtable/pull/33)) by @ZL-Asica
+- test(core): cover Airtable error edge cases ([#29](https://github.com/ZL-Asica/TS-Airtable/pull/29)) by @ZL-Asica
+
+### 🔄 Miscellaneous / 其他变更
+- release: v0.4.2-beta.0 by @github-actions[bot] in https://github.com/ZL-Asica/TS-Airtable/pull/32
 
 ## [0.4.2-beta.0](https://github.com/ZL-Asica/TS-Airtable/compare/v0.4.1...v0.4.2-beta.0) - 2026-06-01
 
