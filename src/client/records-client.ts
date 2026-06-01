@@ -991,7 +991,11 @@ function validatePerformUpsertRecords<TFields>(
     )
   }
 
-  if (fieldsToMergeOn.some(field => field.trim().length === 0)) {
+  if (
+    fieldsToMergeOn.some(field =>
+      typeof field !== 'string' || field.trim().length === 0,
+    )
+  ) {
     throw new Error(
       'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn entries must be non-empty strings',
     )

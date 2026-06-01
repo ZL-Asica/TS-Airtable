@@ -603,6 +603,16 @@ describe('airtableRecordsClient', () => {
     await expect(
       client.updateRecords(
         'Tasks',
+        [{ fields: { Name: 'Invalid merge config' } }],
+        { performUpsert: { fieldsToMergeOn: [null] as any } },
+      ),
+    ).rejects.toThrow(
+      'AirtableRecordsClient.updateRecords: performUpsert.fieldsToMergeOn entries must be non-empty strings',
+    )
+
+    await expect(
+      client.updateRecords(
+        'Tasks',
         [{ fields: { Name: 'Duplicate merge config' } }],
         { performUpsert: { fieldsToMergeOn: ['Name', 'Name'] } },
       ),
