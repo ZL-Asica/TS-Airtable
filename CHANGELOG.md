@@ -19,6 +19,7 @@ This release finalizes the 0.4.2 cycle with Airtable API robustness improvements
 - docs: document robustness edge cases ([#31](https://github.com/ZL-Asica/TS-Airtable/pull/31)) by @ZL-Asica
 
 ### 🧰 Internal / 内部变更
+- ci(release): normalize release PR note links
 - ci(release): classify test notes separately ([#34](https://github.com/ZL-Asica/TS-Airtable/pull/34)) by @ZL-Asica
 
 ### 🧪 Tests / 测试

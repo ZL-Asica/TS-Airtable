@@ -254,6 +254,10 @@ jobs:
                 .replace(/^####\s+/gm, "### ")
                 .replace(/^##\s+/gm, "### ")
                 .replace(/^\*\s+/gm, "- ")
+                .replace(
+                  /^- (.+?)\s+by\s+(@[A-Za-z0-9-]+)\s+in\s+(https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+))\s*$/gm,
+                  (_line, title, user, url, prNumber) => `- ${title} ([#${prNumber}](${url})) by ${user}`
+                )
                 .trim()
             );
             const body = [manualSummary, normalizedReleaseBody, fullChangelog].filter(Boolean).join("\n\n");
