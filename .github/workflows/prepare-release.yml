@@ -98,6 +98,15 @@ jobs:
       - name: Refresh pnpm lockfile
         run: pnpm install --lockfile-only --no-frozen-lockfile
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Refresh versioned documentation
+        run: |
+          pnpm run docs
+          pnpm run docs:version
+          pnpm run docs:build
+
       # 2) find previous semver tag
       - name: Find previous semver tag
         id: prev
@@ -333,3 +342,5 @@ jobs:
             package.json
             pnpm-lock.yaml
             CHANGELOG.md
+            docs/versions
+            docs/versions.json
