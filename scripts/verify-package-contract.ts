@@ -13,16 +13,31 @@ import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+interface RunOptions {
+  cwd?: string
+  stdio?: 'pipe' | 'inherit'
+}
+
+interface PackedPackageJson {
+  exports?: {
+    '.'?: {
+      import?: string
+      require?: string
+    }
+  }
+  types?: string
+}
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tmpRoot = mkdtempSync(join(tmpdir(), 'ts-airtable-package-'))
 const npmCache = join(tmpRoot, 'npm-cache')
 
-function assert(condition, message) {
+function assert(condition: unknown, message: string): asserts condition {
   if (!condition)
     throw new Error(message)
 }
 
-function run(command, args, options = {}) {
+function run(command: string, args: string[], options: RunOptions = {}) {
   return execFileSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     encoding: 'utf8',
@@ -55,7 +70,9 @@ try {
   })
 
   const packageRoot = join(consumerRoot, 'node_modules', 'ts-airtable')
-  const packageJson = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+  const packageJson = JSON.parse(
+    readFileSync(join(packageRoot, 'package.json'), 'utf8'),
+  ) as PackedPackageJson
 
   assert(packageJson.exports?.['.']?.import === './dist/index.js', 'ESM export entry is missing or incorrect')
   assert(packageJson.exports?.['.']?.require === './dist/index.cjs', 'CJS export entry is missing or incorrect')
