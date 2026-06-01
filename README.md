@@ -276,8 +276,14 @@ pnpm test:coverage
 
 # Lint / build
 pnpm lint
+pnpm typecheck
 pnpm build
 ```
+
+Releases are prepared and published from GitHub Actions. Use the `Prepare Release PR`
+workflow for version bumps and changelog updates, then merge the release PR to let
+the release workflow create the GitHub release and publish to npm with trusted
+publishing.
 
 ## Contributing
 
