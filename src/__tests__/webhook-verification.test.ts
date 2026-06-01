@@ -25,6 +25,7 @@ describe('webhook verification helpers', () => {
     expect(getAirtableWebhookContentMac(new Headers({
       [AIRTABLE_WEBHOOK_CONTENT_MAC_HEADER]: 'hmac-sha256=abc123',
     }))).toBe('hmac-sha256=abc123')
+    expect(getAirtableWebhookContentMac(new Headers())).toBeUndefined()
 
     expect(getAirtableWebhookContentMac({
       'x-airtable-content-mac': 'hmac-sha256=def456',
@@ -52,6 +53,11 @@ describe('webhook verification helpers', () => {
       body,
       macSecretBase64,
       signature: signature.replace(/.$/, '0'),
+    })).resolves.toBe(false)
+    await expect(verifyAirtableWebhookSignature({
+      body,
+      macSecretBase64,
+      signature: `${signature}00`,
     })).resolves.toBe(false)
   })
 
@@ -102,6 +108,14 @@ describe('webhook verification helpers', () => {
       base: { id: 'appXXXXXXXXXXXXXX' },
       webhook: { id: 'achXXXXXXXXXXXXXX' },
       timestamp: '2026-06-01T00:00:00.000Z',
+    })
+
+    expect(parseAirtableWebhookNotification(JSON.stringify({
+      base: { id: 'appNoTimestamp' },
+      webhook: { id: 'achNoTimestamp' },
+    }))).toEqual({
+      base: { id: 'appNoTimestamp' },
+      webhook: { id: 'achNoTimestamp' },
     })
   })
 

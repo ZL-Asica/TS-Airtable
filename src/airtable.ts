@@ -164,12 +164,11 @@ function createBase<
 
 type AirtableBaseOptions = Partial<Omit<AirtableClientOptions, 'apiKey' | 'baseId'>>
 
-function hasOwnOption<T extends object, K extends PropertyKey>(
+function hasOwnOption<T extends object, K extends string>(
   value: T | undefined,
   key: K,
 ): value is T & Record<K, unknown> {
-  const ownKey: string | symbol = typeof key === 'number' ? String(key) : key
-  return value != null && Reflect.ownKeys(value).includes(ownKey)
+  return value != null && Reflect.ownKeys(value).includes(key)
 }
 
 // -----------------------------------------------------------------------------

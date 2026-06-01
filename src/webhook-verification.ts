@@ -179,9 +179,9 @@ export async function verifyAirtableWebhookSignature(
 
   const expected = normalizeSignature(
     await computeAirtableWebhookSignature(options),
-  )
+  )!
 
-  return expected ? constantTimeEqual(expected, actual) : false
+  return constantTimeEqual(expected, actual)
 }
 
 /**

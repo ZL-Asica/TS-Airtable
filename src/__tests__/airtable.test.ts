@@ -117,7 +117,8 @@ describe('airtable global facade', () => {
   })
 
   it('per-base requestScheduler and rateLimiter overrides remain mutually exclusive', async () => {
-    const requestScheduler = { schedule: vi.fn() }
+    const globalScheduler = { schedule: vi.fn() }
+    const perBaseScheduler = { schedule: vi.fn() }
 
     AirtableClientMock.mockImplementation(function (this: any, opts: any) {
       ;(this as any)._opts = opts
@@ -128,11 +129,11 @@ describe('airtable global facade', () => {
 
     Airtable.configure({
       apiKey: 'testApiKey',
-      requestScheduler,
+      requestScheduler: globalScheduler,
     })
 
     const schedulerBase = Airtable.base<{ name: string }>('appScheduler')
-    expect((schedulerBase.client as any)._opts.requestScheduler).toBe(requestScheduler)
+    expect((schedulerBase.client as any)._opts.requestScheduler).toBe(globalScheduler)
     expect((schedulerBase.client as any)._opts.rateLimiter).toBeUndefined()
 
     const limiterBase = Airtable.base<{ name: string }>('appLimiter', {
@@ -140,6 +141,31 @@ describe('airtable global facade', () => {
     })
     expect((limiterBase.client as any)._opts.requestScheduler).toBeUndefined()
     expect((limiterBase.client as any)._opts.rateLimiter).toBe(true)
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      rateLimiter: true,
+    })
+
+    const schedulerOverrideBase = Airtable.base<{ name: string }>('appSchedulerOverride', {
+      requestScheduler: perBaseScheduler,
+    })
+    expect((schedulerOverrideBase.client as any)._opts.requestScheduler).toBe(perBaseScheduler)
+    expect((schedulerOverrideBase.client as any)._opts.rateLimiter).toBeUndefined()
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      rateLimiter: false,
+    })
+
+    const disabledLimiterBase = Airtable.base<{ name: string }>('appDisabledLimiter')
+    expect((disabledLimiterBase.client as any)._opts.requestScheduler).toBeUndefined()
+    expect((disabledLimiterBase.client as any)._opts.rateLimiter).toBe(false)
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      requestScheduler: undefined,
+    })
   })
 
   it('per-base recordsCache overrides global recordsCache', async () => {
