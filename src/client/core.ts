@@ -353,7 +353,7 @@ export class AirtableCoreClient {
       return data as T
     }
 
-    const payload = (isJson && data ? (data as AirtableErrorResponseBody) : undefined)
+    const payload = parseErrorResponsePayload(data, text, isJson)
 
     throw new AirtableError(response.status, payload)
   }
@@ -499,6 +499,35 @@ function parseJsonResponseBody(text: string, isOk: boolean): unknown {
     }
     throw err
   }
+}
+
+function parseErrorResponsePayload(
+  data: unknown,
+  text: string,
+  isJson: boolean,
+): AirtableErrorResponseBody | undefined {
+  if (isJson) {
+    return data ? (data as AirtableErrorResponseBody) : undefined
+  }
+
+  if (!looksLikeJsonObject(text)) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return parsed && typeof parsed === 'object'
+      ? (parsed as AirtableErrorResponseBody)
+      : undefined
+  }
+  catch {
+    return undefined
+  }
+}
+
+function looksLikeJsonObject(text: string): boolean {
+  const trimmed = text.trim()
+  return trimmed.startsWith('{') && trimmed.endsWith('}')
 }
 
 function isAbortError(err: unknown): boolean {
