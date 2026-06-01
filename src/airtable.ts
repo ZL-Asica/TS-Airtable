@@ -162,6 +162,16 @@ function createBase<
   return baseFn
 }
 
+type AirtableBaseOptions = Partial<Omit<AirtableClientOptions, 'apiKey' | 'baseId'>>
+
+function hasOwnOption<T extends object, K extends PropertyKey>(
+  value: T | undefined,
+  key: K,
+): value is T & Record<K, unknown> {
+  const ownKey: string | symbol = typeof key === 'number' ? String(key) : key
+  return value != null && Reflect.ownKeys(value).includes(ownKey)
+}
+
 // -----------------------------------------------------------------------------
 // Public Airtable singleton
 // -----------------------------------------------------------------------------
@@ -218,6 +228,9 @@ class AirtableGlobal {
    *   - `retryOnStatuses` (optional)
    *   - `recordsCache` (optional) – shared records cache configuration,
    *     see `AirtableRecordsCacheOptions`
+   *   - `observability` (optional) – request lifecycle hooks for logs/metrics
+   *   - `requestScheduler` (optional) – custom scheduler for each HTTP attempt
+   *   - `rateLimiter` (optional) – built-in per-process request limiter
    *
    * @example
    * ```ts
@@ -259,6 +272,21 @@ class AirtableGlobal {
     if (config.recordsCache) {
       globalConfig.recordsCache = config.recordsCache
     }
+    if (config.observability) {
+      globalConfig.observability = config.observability
+    }
+    if (hasOwnOption(config, 'requestScheduler')) {
+      globalConfig.requestScheduler = config.requestScheduler
+      if (config.requestScheduler) {
+        globalConfig.rateLimiter = undefined
+      }
+    }
+    if (hasOwnOption(config, 'rateLimiter')) {
+      globalConfig.rateLimiter = config.rateLimiter
+      if (config.rateLimiter) {
+        globalConfig.requestScheduler = undefined
+      }
+    }
   }
 
   /**
@@ -267,9 +295,10 @@ class AirtableGlobal {
    * This uses configuration previously provided via {@link AirtableGlobal.configure}.
    * At minimum, an API key must have been configured.
    *
-   * You can optionally provide per-base overrides for some
-   * {@link AirtableClientOptions} fields (currently `recordsCache`). When both
-   * global config and per-base overrides are present, **per-base overrides win**.
+   * You can optionally provide per-base overrides for
+   * {@link AirtableClientOptions} fields that are not `apiKey` or `baseId`.
+   * When both global config and per-base overrides are present,
+   * **per-base overrides win**.
    *
    * In particular for caching:
    *
@@ -284,8 +313,10 @@ class AirtableGlobal {
    *
    * @param baseId - Airtable base ID (e.g. `"appXXXXXXXXXXXXXX"`).
    * @param overrides - Optional per-base overrides for {@link AirtableClientOptions}.
-   *   Currently only `recordsCache` is supported:
    *   - `recordsCache` – per-base caching settings for `client.records`.
+   *   - `observability` – per-base request lifecycle hooks.
+   *   - `requestScheduler` – per-base scheduler for each HTTP attempt.
+   *   - `rateLimiter` – per-base built-in limiter configuration.
    *
    * @returns An {@link AirtableBase} function that can be called with a
    *   table ID or name: `base('Tasks')`.
@@ -330,7 +361,7 @@ class AirtableGlobal {
     TDefaultFields extends AirtableFieldSet = AirtableFieldSet,
   >(
     baseId: string,
-    overrides?: Pick<AirtableClientOptions, 'recordsCache'>,
+    overrides?: AirtableBaseOptions,
   ): AirtableBase<TDefaultFields> {
     if (!baseId) {
       throw new Error('Airtable.base: baseId is required')
@@ -340,6 +371,9 @@ class AirtableGlobal {
         'Airtable.base: apiKey must be configured via Airtable.configure(...)',
       )
     }
+
+    const hasRequestSchedulerOverride = hasOwnOption(overrides, 'requestScheduler')
+    const hasRateLimiterOverride = hasOwnOption(overrides, 'rateLimiter')
 
     const options: AirtableClientOptions = {
       apiKey: globalConfig.apiKey,
@@ -353,6 +387,17 @@ class AirtableGlobal {
       retryInitialDelayMs: globalConfig.retryInitialDelayMs,
       retryOnStatuses: globalConfig.retryOnStatuses,
       recordsCache: overrides?.recordsCache ?? globalConfig.recordsCache,
+      observability: overrides?.observability ?? globalConfig.observability,
+      requestScheduler: hasRequestSchedulerOverride
+        ? overrides.requestScheduler
+        : hasRateLimiterOverride
+          ? undefined
+          : globalConfig.requestScheduler,
+      rateLimiter: hasRateLimiterOverride
+        ? overrides.rateLimiter
+        : hasRequestSchedulerOverride
+          ? undefined
+          : globalConfig.rateLimiter,
     }
 
     return createBase<TDefaultFields>(options)

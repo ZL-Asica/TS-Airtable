@@ -55,6 +55,13 @@ describe('airtable global facade', () => {
     const globalRecordsCache = {
       defaultTtlMs: 12_345,
     }
+    const observability = {
+      onRequestEnd: vi.fn(),
+    }
+    const rateLimiter = {
+      requestsPerSecond: 4,
+      maxConcurrent: 2,
+    }
 
     // Use a "constructor style" implementation to ensure `new AirtableClientMock()` works
     AirtableClientMock.mockImplementation(function (this: any, opts: any) {
@@ -77,6 +84,8 @@ describe('airtable global facade', () => {
       retryOnStatuses: retryStatuses,
       customHeaders,
       recordsCache: globalRecordsCache,
+      observability,
+      rateLimiter,
     })
 
     const base = Airtable.base<{ name: string }>('appBase123')
@@ -98,11 +107,39 @@ describe('airtable global facade', () => {
       retryOnStatuses: retryStatuses,
       customHeaders,
       recordsCache: globalRecordsCache,
+      observability,
+      rateLimiter,
     })
 
     // base.id / base.client metadata should be correct
     expect(base.id).toBe('appBase123')
     expect(base.client).toBe(instance)
+  })
+
+  it('per-base requestScheduler and rateLimiter overrides remain mutually exclusive', async () => {
+    const requestScheduler = { schedule: vi.fn() }
+
+    AirtableClientMock.mockImplementation(function (this: any, opts: any) {
+      ;(this as any)._opts = opts
+      ;(this as any).records = {}
+    })
+
+    const { Airtable } = await import('@/airtable')
+
+    Airtable.configure({
+      apiKey: 'testApiKey',
+      requestScheduler,
+    })
+
+    const schedulerBase = Airtable.base<{ name: string }>('appScheduler')
+    expect((schedulerBase.client as any)._opts.requestScheduler).toBe(requestScheduler)
+    expect((schedulerBase.client as any)._opts.rateLimiter).toBeUndefined()
+
+    const limiterBase = Airtable.base<{ name: string }>('appLimiter', {
+      rateLimiter: true,
+    })
+    expect((limiterBase.client as any)._opts.requestScheduler).toBeUndefined()
+    expect((limiterBase.client as any)._opts.rateLimiter).toBe(true)
   })
 
   it('per-base recordsCache overrides global recordsCache', async () => {

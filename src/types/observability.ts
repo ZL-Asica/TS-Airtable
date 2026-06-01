@@ -1,13 +1,21 @@
 /**
  * HTTP method used by an Airtable request.
  */
-export type AirtableRequestMethod = 'GET' | 'HEAD' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+export type AirtableRequestMethod
+  = | 'GET'
+    | 'HEAD'
+    | 'POST'
+    | 'PATCH'
+    | 'PUT'
+    | 'DELETE'
+    | (string & {})
 
 /**
  * Shared metadata emitted by request observability hooks and schedulers.
  *
- * Values in this object are safe to log. Sensitive headers and request bodies
- * are intentionally omitted.
+ * Sensitive headers and request bodies are intentionally omitted. The URL may
+ * still contain Airtable query parameters such as view names, field names, and
+ * formulas; redact or sample it before forwarding events to shared logs.
  */
 export interface AirtableRequestContext {
   /**
@@ -30,8 +38,8 @@ export interface AirtableRequestContext {
   /**
    * Fully resolved request URL.
    *
-   * This may contain Airtable query parameters, but never includes API keys or
-   * request headers.
+   * This may contain Airtable query parameters such as view names, field names,
+   * formulas, and offsets. It never includes API keys or request headers.
    */
   url: string
 
@@ -169,7 +177,8 @@ export interface AirtableRequestScheduler {
    * Schedule a single HTTP attempt.
    *
    * @param run - Callback that performs the actual `fetch` attempt.
-   * @param context - Safe-to-log request metadata for this attempt.
+   * @param context - Request metadata for this attempt. It omits headers and
+   * bodies, but its URL may contain Airtable query values.
    */
   schedule: <T>(
     run: () => Promise<T>,

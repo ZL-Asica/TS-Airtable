@@ -161,10 +161,11 @@ export interface AirtableClientOptions {
   /**
    * Lightweight lifecycle hooks for production logging and metrics.
    *
-   * These hooks receive safe request metadata such as URL, method, base id,
-   * attempt number, status, retry delay, and duration. They intentionally do
-   * not include request headers or bodies so secrets and record contents are
-   * not logged by default.
+   * These hooks receive request metadata such as URL, method, base id, attempt
+   * number, status, retry delay, and duration. They intentionally do not
+   * include request headers or bodies so API keys and request payloads are not
+   * logged by default. URLs can still contain Airtable query values such as
+   * formulas, view names, field names, and offsets; redact them when needed.
    *
    * Hook failures are swallowed by the SDK. Observability code should never
    * make Airtable requests fail.

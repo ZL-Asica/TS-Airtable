@@ -254,6 +254,42 @@ describe('airtableCoreClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('reports custom request methods consistently to schedulers and observability hooks', async () => {
+    const onRequestStart = vi.fn()
+    const schedule = vi.fn(async run => run())
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      requestScheduler: { schedule },
+      observability: {
+        onRequestStart,
+      },
+    })
+
+    await core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {
+      method: 'options',
+    })
+
+    expect(onRequestStart).toHaveBeenCalledWith(expect.objectContaining({
+      method: 'OPTIONS',
+    }))
+    expect(schedule).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        method: 'OPTIONS',
+      }),
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/v0/app123/Tasks',
+      expect.objectContaining({
+        method: 'options',
+      }),
+    )
+  })
+
   it('throws when requestScheduler and rateLimiter are configured together', () => {
     expect(
       () =>

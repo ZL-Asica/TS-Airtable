@@ -630,18 +630,7 @@ function isNetworkRetryMethod(method?: string): boolean {
 }
 
 function normalizeRequestMethod(method?: string): AirtableRequestMethod {
-  const normalizedMethod = method?.toUpperCase() ?? 'GET'
-
-  switch (normalizedMethod) {
-    case 'HEAD':
-    case 'POST':
-    case 'PATCH':
-    case 'PUT':
-    case 'DELETE':
-      return normalizedMethod
-    default:
-      return 'GET'
-  }
+  return method?.toUpperCase() ?? 'GET'
 }
 
 function createRequestId(): string {
