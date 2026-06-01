@@ -1,25 +1,46 @@
 ---
+layout: home
 title: Airtable TS
 description: A tiny, fetch-based JavaScript and TypeScript client for the Airtable Web API.
-outline: deep
+hero:
+  name: Airtable TS
+  text: A tiny Airtable client for TypeScript runtimes.
+  tagline: Use the familiar Airtable.js facade when you want it, or drop down to typed records, metadata, webhooks, retries, and cache controls when you need more.
+  image:
+    src: /web-app-manifest-512x512.png
+    alt: Airtable TS
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /guide/getting-started
+    - theme: alt
+      text: API Reference
+      link: /api/
+features:
+  - title: Familiar Airtable.js flow
+    details: Configure once, call base(tableName), and keep the simple select/find/create/update/destroy workflow.
+  - title: Typed low-level client
+    details: Work directly with records, metadata, and webhooks while keeping Airtable response shapes visible.
+  - title: Fetch-first runtime support
+    details: Runs in Node 18+, modern browsers, and edge runtimes that provide the standard fetch API.
+  - title: Robust by default
+    details: Handles Retry-After, retryable failures, Airtable error payloads, and long list queries via POST /listRecords.
+  - title: Optional record caching
+    details: Add a cache store when reads are hot, with mutation-aware invalidation and attachment transform hooks.
+  - title: Small package surface
+    details: Promise-only APIs, no legacy callback layer, and exports that are easy to test in ESM and CJS projects.
 ---
 
-# Airtable TS
+## Pick The Right Entry Point
 
-Airtable TS is a small, fetch-based client for the Airtable Web API. It gives
-you an Airtable.js-style facade for everyday record work and a typed low-level
-client for records, metadata, webhooks, retries, and optional record caching.
-
-## Choose Your Starting Point
-
-| Goal | Start here |
-| --- | --- |
-| Install the package and list records | [Getting Started](./guide/getting-started.md) |
-| Read, paginate, create, update, delete, or upsert records | [Records API](./guide/records.md) |
-| Inspect bases, tables, fields, and views | [Metadata](./guide/metadata.md) |
-| Create and consume Airtable webhooks | [Webhooks](./guide/webhooks.md) |
-| Cache Airtable record reads safely | [Caching](./guide/features/caching.md) |
-| Check exported classes, types, and options | [API Reference](./api/index.md) |
+- Start with [Getting Started](./guide/getting-started.md) if you are installing
+  the package or moving from the official Airtable client.
+- Use the [Records guide](./guide/records.md) for list pagination, CRUD,
+  batch updates, and upserts.
+- Use [Metadata](./guide/metadata.md) and [Webhooks](./guide/webhooks.md) when
+  you need base structure or change notifications.
+- Use the [API Reference](./api/index.md) when you already know the export or
+  option name you are looking for.
 
 ## Quick Example
 
@@ -40,27 +61,6 @@ const records = await base('Tasks').select({ view: 'Grid view' }).all()
 
 console.log(records[0]?.fields.Name)
 ```
-
-## What This Client Focuses On
-
-- **Fetch-first runtime support.** The package runs in Node 18+, modern
-  browsers, and edge runtimes that provide the standard `fetch` API.
-- **Official-client familiarity.** The facade keeps the familiar
-  `Airtable.configure(...); Airtable.base(...)(tableName)` flow while staying
-  small and promise-only.
-- **Direct Web API coverage.** The low-level `AirtableClient` exposes records,
-  metadata, and webhooks without hiding Airtable's response shapes.
-- **Robust request behavior.** The client handles retryable failures,
-  `Retry-After`, long list URLs via `POST /listRecords`, and JSON-shaped
-  Airtable error payloads from imperfect mocks or proxies.
-- **Optional caching.** Record reads can use a pluggable cache store with
-  automatic invalidation on mutations.
-
-## Versioned Documentation
-
-The live root of this site follows the current repository version. Published
-snapshots are kept under [Versions](./versions/index.md) so stable and
-prerelease documentation can be compared after a new release is deployed.
 
 ## Package Links
 
