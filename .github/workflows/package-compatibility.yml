@@ -1,0 +1,156 @@
+name: 📦 Package Compatibility
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  package-contract:
+    name: Node ${{ matrix.node-version }} package contract
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22, 24]
+
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 🧰 Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: package.json
+
+      - name: 🧱 Set up build Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build package
+        run: pnpm run build
+
+      - name: 📦 Pack package
+        id: pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACK_DIR="$RUNNER_TEMP/ts-airtable-pack"
+          mkdir -p "$PACK_DIR"
+          npm pack --ignore-scripts --pack-destination "$PACK_DIR"
+          TARBALL="$(find "$PACK_DIR" -maxdepth 1 -name '*.tgz' -print -quit)"
+
+          if [ -z "$TARBALL" ]; then
+            echo "npm pack did not create a tarball."
+            exit 1
+          fi
+
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+
+      - name: 🧱 Set up consumer Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: 🔎 Verify package contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONSUMER_DIR="$RUNNER_TEMP/ts-airtable-consumer"
+          mkdir -p "$CONSUMER_DIR"
+
+          cat > "$CONSUMER_DIR/package.json" <<'JSON'
+          {
+            "private": true,
+            "type": "module"
+          }
+          JSON
+
+          npm install \
+            --prefix "$CONSUMER_DIR" \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            "${{ steps.pack.outputs.tarball }}"
+
+          PACKAGE_ROOT="$CONSUMER_DIR/node_modules/ts-airtable"
+
+          node --input-type=module <<'JS'
+          import { existsSync, readFileSync } from 'node:fs'
+          import { join } from 'node:path'
+
+          const packageRoot = process.env.PACKAGE_ROOT
+          const packageJson = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+
+          if (packageJson.exports?.['.']?.import !== './dist/index.js')
+            throw new Error('ESM export entry is missing or incorrect')
+          if (packageJson.exports?.['.']?.require !== './dist/index.cjs')
+            throw new Error('CJS export entry is missing or incorrect')
+          if (packageJson.types !== './dist/index.d.cts')
+            throw new Error('package types entry is missing or incorrect')
+
+          for (const file of [
+            'dist/index.js',
+            'dist/index.cjs',
+            'dist/index.d.ts',
+            'dist/index.d.cts',
+          ]) {
+            if (!existsSync(join(packageRoot, file)))
+              throw new Error(`Packed package is missing ${file}`)
+          }
+          JS
+
+          cd "$CONSUMER_DIR"
+
+          node --input-type=module <<'JS'
+          const mod = await import('ts-airtable')
+          if (typeof mod.AirtableClient !== 'function')
+            throw new Error('Missing AirtableClient ESM export')
+          if (typeof mod.default?.configure !== 'function')
+            throw new Error('Missing default Airtable facade export')
+          JS
+
+          node <<'JS'
+          const mod = require('ts-airtable')
+          if (typeof mod.AirtableClient !== 'function')
+            throw new Error('Missing AirtableClient CJS export')
+          if (typeof mod.default?.configure !== 'function')
+            throw new Error('Missing default Airtable facade export')
+          JS
+
+          cat > consumer.ts <<'TS'
+          import Airtable, { AirtableClient, type AirtableFieldSet } from 'ts-airtable'
+
+          interface TaskFields extends AirtableFieldSet {
+            Name: string
+          }
+
+          const client = new AirtableClient<TaskFields>({
+            apiKey: 'key',
+            baseId: 'appTest',
+          })
+
+          client.records
+          Airtable.configure({ apiKey: 'key' })
+          TS
+
+          "$GITHUB_WORKSPACE/node_modules/.bin/tsc" \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --target ES2022 \
+            --strict \
+            --noEmit \
+            consumer.ts
+        env:
+          PACKAGE_ROOT: ${{ runner.temp }}/ts-airtable-consumer/node_modules/ts-airtable
