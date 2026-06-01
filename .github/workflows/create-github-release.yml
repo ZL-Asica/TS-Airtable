@@ -39,9 +39,46 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
+            const fs = require("node:fs");
             const { owner, repo } = context.repo;
             const sha = context.sha;
             const releasePattern = /^v?([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
+            const releaseTitlePattern = /^release:\s+v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
+            const releaseBranchPattern = /^release\/v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
+
+            const extractReleaseNotes = (body) => {
+              const notesMatch = body.match(/##\s*Release notes\s*([\s\S]*)/i);
+              const notes = notesMatch ? notesMatch[1] : body;
+              return notes.replace(/[ \t]+$/gm, "").trim();
+            };
+
+            const readChangelogSection = (version) => {
+              if (!fs.existsSync("CHANGELOG.md")) return "";
+
+              const changelog = fs.readFileSync("CHANGELOG.md", "utf8");
+              const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const heading = new RegExp(
+                `^##\\s+(?:\\[v?${escapedVersion}\\]\\([^\\n)]+\\)|\\[v?${escapedVersion}\\]|v?${escapedVersion})(?:\\s+-\\s+[^\\n]*)?\\s*$`,
+                "im",
+              );
+              const match = changelog.match(heading);
+              if (!match || match.index === undefined) return "";
+
+              const bodyStart = match.index + match[0].length;
+              const nextHeading = changelog.slice(bodyStart).search(/^##\s+/m);
+              const bodyEnd = nextHeading === -1
+                ? changelog.length
+                : bodyStart + nextHeading;
+
+              return changelog.slice(bodyStart, bodyEnd).trim();
+            };
+
+            const setReleaseOutputs = ({ version, isPrerelease, body }) => {
+              core.setOutput("is_release", "true");
+              core.setOutput("version", version);
+              core.setOutput("is_prerelease", isPrerelease ? "true" : "false");
+              core.setOutput("body", body);
+            };
 
             if (context.eventName === "workflow_dispatch") {
               const inputVersion = (context.payload.inputs?.version || "").trim();
@@ -61,60 +98,68 @@ jobs:
                 body = (release.data.body || "").trim();
               }
               catch (error) {
+                if (error.status !== 404) throw error;
                 core.info(`No existing GitHub Release found for v${version}; it will be created if needed.`);
               }
 
-              core.setOutput("is_release", "true");
-              core.setOutput("version", version);
-              core.setOutput("is_prerelease", version.includes("-") ? "true" : "false");
-              core.setOutput("body", body);
+              body ||= readChangelogSection(version);
+              setReleaseOutputs({
+                version,
+                isPrerelease: version.includes("-"),
+                body,
+              });
               return;
             }
 
-            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner,
-              repo,
-              commit_sha: sha,
-            });
-
-            const releaseTitlePattern = /^release:\s+v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/;
-            const releasePr = prs.data.find((pr) => {
+            const findReleasePr = (prs) => prs.find((pr) => {
               const title = pr.title || "";
               const branch = pr.head?.ref || "";
               const labels = pr.labels?.map((label) => label.name) || [];
               return labels.includes("release")
                 && releaseTitlePattern.test(title)
-                && /^release\/v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(branch);
+                && releaseBranchPattern.test(branch);
             });
+
+            const commitShas = [
+              sha,
+              ...(context.payload.commits || []).map((commit) => commit.id),
+            ].filter(Boolean);
+            const uniqueCommitShas = [...new Set(commitShas)];
+
+            let releasePr;
+            for (const commitSha of uniqueCommitShas) {
+              const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner,
+                repo,
+                commit_sha: commitSha,
+              });
+              releasePr = findReleasePr(prs.data);
+              if (releasePr) break;
+            }
 
             if (!releasePr) {
               core.setOutput("is_release", "false");
               return;
             }
 
-            const titleMatch = (releasePr.title || "").match(releaseTitlePattern);
-            const branchMatch = (releasePr.head?.ref || "").match(/^release\/v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$/);
+            const titleMatch = (releasePr?.title || "").match(releaseTitlePattern);
+            const branchMatch = (releasePr?.head?.ref || "").match(releaseBranchPattern);
             const version = titleMatch?.[1] || branchMatch?.[1];
             if (!version) {
-              core.setFailed(`Could not parse release version from PR #${releasePr.number}`);
+              core.setFailed("Could not parse release version from push payload.");
               return;
             }
 
-            let body = (releasePr.body || "").trim();
-
-            const notesMatch = body.match(/##\s*Release notes\s*([\s\S]*)/i);
-            if (notesMatch) body = notesMatch[1].trim();
-
-            body = body.replace(/[ \t]+$/gm, "").trim();
-
-            core.setOutput("is_release", "true");
-            core.setOutput("version", version);
-            core.setOutput("is_prerelease", version.includes("-") ? "true" : "false");
-            core.setOutput("body", body);
+            const body = extractReleaseNotes(releasePr?.body || "") || readChangelogSection(version);
+            setReleaseOutputs({
+              version,
+              isPrerelease: version.includes("-"),
+              body,
+            });
 
       - name: Stop if not a release commit
         if: steps.detect.outputs.is_release != 'true'
-        run: echo "Not a release PR merge commit. Skip tag and release creation."
+        run: echo "Not a release commit. Skip tag and release creation."
 
       - name: Set tag name
         if: steps.detect.outputs.is_release == 'true'
