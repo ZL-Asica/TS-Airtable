@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🧰 Internal / 内部变更
 
+- ci(release): publish prereleases with beta npm tag ([#26](https://github.com/ZL-Asica/TS-Airtable/pull/26)) by @ZL-Asica
 - ci(release): fix release PR creation credentials ([#25](https://github.com/ZL-Asica/TS-Airtable/pull/25)) by @ZL-Asica
 
 ### 🔄 Miscellaneous / 其他变更
