@@ -1,0 +1,13 @@
+shellEmulator: true
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - ast-v8-to-istanbul@1.0.2
+
+overrides:
+  '@vitest/eslint-plugin': 1.6.18
+  ansis: 4.3.0
+  ast-v8-to-istanbul: 1.0.2
+  tinyexec: 1.2.3
+
+allowBuilds:
+  esbuild: true
