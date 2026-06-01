@@ -3,6 +3,7 @@ import type {
   AirtableObservabilityHooks,
   AirtableRequestScheduler,
 } from './observability'
+import type { AirtableRateLimiterOptions } from '@/rate-limiter'
 
 export type CustomHeaders = Record<string, string | number | boolean>
 
@@ -179,4 +180,17 @@ export interface AirtableClientOptions {
    * throttling.
    */
   requestScheduler?: AirtableRequestScheduler
+
+  /**
+   * Convenience configuration for the built-in `AirtableRateLimiter`.
+   *
+   * - `true` enables the default limiter (`5` request starts per second,
+   *   up to `5` concurrent attempts).
+   * - an options object customizes the limiter.
+   *
+   * Use {@link requestScheduler} instead when you need a shared external
+   * scheduler or distributed rate limiting. `rateLimiter` and
+   * `requestScheduler` are mutually exclusive.
+   */
+  rateLimiter?: boolean | AirtableRateLimiterOptions
 }

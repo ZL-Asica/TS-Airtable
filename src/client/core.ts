@@ -4,12 +4,14 @@ import type {
   AirtableObservabilityHooks,
   AirtableRequestContext,
   AirtableRequestMethod,
+  AirtableRequestRateLimitEvent,
   AirtableRequestScheduler,
   CustomHeaders,
   GetRecordParams,
   ListRecordsParams,
 } from '@/types'
 import { AirtableError } from '@/errors'
+import { AirtableRateLimiter } from '@/rate-limiter'
 
 /**
  * Default Airtable API root URL.
@@ -100,7 +102,12 @@ export class AirtableCoreClient {
     this.retryInitialDelayMs = options.retryInitialDelayMs ?? 500
     this.retryOnStatuses = options.retryOnStatuses ?? [429, 500, 502, 503, 504]
     this.observability = options.observability
+    if (options.requestScheduler && options.rateLimiter) {
+      throw new Error('AirtableClient: requestScheduler and rateLimiter are mutually exclusive')
+    }
     this.requestScheduler = options.requestScheduler
+      ?? createRateLimiter(options.rateLimiter, event =>
+        this.emit('onRateLimit', event))
   }
 
   // ---------------------------------------------------------------------------
@@ -649,4 +656,28 @@ function nowMs(): number {
   return typeof performance === 'object' && typeof performance.now === 'function'
     ? performance.now()
     : Date.now()
+}
+
+function createRateLimiter(
+  options: AirtableClientOptions['rateLimiter'],
+  onDelay: (event: AirtableRequestRateLimitEvent) => void,
+): AirtableRequestScheduler | undefined {
+  if (!options)
+    return undefined
+
+  if (options === true) {
+    return new AirtableRateLimiter({ onDelay })
+  }
+
+  return new AirtableRateLimiter({
+    ...options,
+    onDelay: (event) => {
+      try {
+        options.onDelay?.(event)
+      }
+      finally {
+        onDelay(event)
+      }
+    },
+  })
 }

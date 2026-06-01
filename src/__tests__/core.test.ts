@@ -254,6 +254,69 @@ describe('airtableCoreClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('throws when requestScheduler and rateLimiter are configured together', () => {
+    expect(
+      () =>
+        new AirtableCoreClient({
+          apiKey: 'key-123',
+          baseId: 'app123',
+          fetch: vi.fn() as unknown as typeof fetch,
+          requestScheduler: { schedule: vi.fn() },
+          rateLimiter: true,
+        }),
+    ).toThrow('AirtableClient: requestScheduler and rateLimiter are mutually exclusive')
+  })
+
+  it('uses built-in rateLimiter options and emits rate limit events', async () => {
+    let now = 0
+    const onDelay = vi.fn()
+    const onRateLimit = vi.fn()
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      rateLimiter: {
+        requestsPerSecond: 2,
+        maxConcurrent: 1,
+        now: () => now,
+        sleep: async (ms) => {
+          now += ms
+        },
+        onDelay,
+      },
+      observability: {
+        onRateLimit,
+      },
+    })
+
+    await core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {})
+    await core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {})
+
+    expect(onDelay).toHaveBeenCalledWith(expect.objectContaining({
+      delayMs: 500,
+    }))
+    expect(onRateLimit).toHaveBeenCalledWith(expect.objectContaining({
+      delayMs: 500,
+    }))
+  })
+
+  it('accepts true for the built-in default rate limiter', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(200, { ok: true })) as unknown as typeof fetch
+    const core = new AirtableCoreClient({
+      apiKey: 'key-123',
+      baseId: 'app123',
+      fetch: fetchMock,
+      rateLimiter: true,
+    })
+
+    await expect(
+      core.requestJson(new URL('https://example.com/v0/app123/Tasks'), {}),
+    ).resolves.toEqual({ ok: true })
+  })
+
   it('buildTableUrl builds table and record URLs with optional query', () => {
     const core = new AirtableCoreClient({
       apiKey: 'key',
