@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history + tags)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -48,7 +48,7 @@ jobs:
           package_json_file: package.json
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -114,7 +114,7 @@ jobs:
       # 3) generate release notes via GitHub API (respects .github/release.yml)
       - name: Generate release notes (GitHub)
         id: notes
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           RELEASE_SUMMARY: ${{ inputs.release_summary }}
         with:
@@ -188,7 +188,7 @@ jobs:
       # 4) update CHANGELOG.md (Keep a Changelog)
       - name: Update CHANGELOG.md
         if: steps.notes.outputs.body_changelog != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           RELEASE_NOTES: ${{ steps.notes.outputs.body_changelog }}
         with:
