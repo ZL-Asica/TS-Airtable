@@ -278,6 +278,7 @@ pnpm test:coverage
 pnpm lint
 pnpm typecheck
 pnpm build
+pnpm test:package
 ```
 
 Releases are prepared and published from GitHub Actions. Use the `Prepare Release PR`
